@@ -23,14 +23,18 @@ def probe(path):
     return json.loads(run(["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", path]).stdout)
 
 
+def validate_source_duration(duration):
+    if not math.isfinite(duration) or duration < 30 or duration > 3600:
+        raise ValueError("Source duration must be between 30 seconds and 60 minutes")
+
+
 def analyze(source, output):
     import cv2
     import numpy as np
 
     info = probe(source)
     duration = float(info["format"]["duration"])
-    if duration < 30 or duration > 1800:
-        raise ValueError("Source duration must be between 30 seconds and 30 minutes")
+    validate_source_duration(duration)
     if not any(stream["codec_type"] == "audio" for stream in info["streams"]):
         raise ValueError("Source video must contain an audio track")
     audio = str(Path(output).with_suffix(".wav"))

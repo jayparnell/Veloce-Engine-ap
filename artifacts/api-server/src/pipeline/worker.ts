@@ -2,6 +2,7 @@ import { db, projectsTable, analyticsLogsTable } from "@workspace/db";
 import { sql, eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { runDemo, runMedia } from "./process";
+import { SourceIngestionError } from "./ingestion";
 
 let busy = false;
 export function startPipelineWorker() {
@@ -33,7 +34,8 @@ export function startPipelineWorker() {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Media processing failed.";
         // Do not leak SDK request payloads, paths or credentials into client errors.
-        const safe = /^(Media |The source |No |Source |Voiceover |Processing |You do not|Upload |The rendered)/.test(message) ? message.slice(0, 250) : "AI or media processing failed. Check source access and retry; no video was marked ready.";
+        const safe = error instanceof SourceIngestionError ? message.slice(0, 3800)
+          : /^(Media |The source |No |Source |Voiceover |Processing |You do not|Upload |The rendered)/.test(message) ? message.slice(0, 500) : "AI or media processing failed. Check source access and retry; no video was marked ready.";
         logger.warn({ projectId: project.id, errorName: error instanceof Error ? error.name : "Unknown" }, "Production batch failed");
         await db.update(projectsTable).set({ status: "failed", error: safe, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
         await db.insert(analyticsLogsTable).values({ ownerId: project.ownerId, message: `Batch ${project.id} failed. ${safe}` });

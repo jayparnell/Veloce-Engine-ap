@@ -13,6 +13,11 @@ export async function seedWorkspace(ownerId: string) {
     const existing = await tx.select({ id: projectsTable.id }).from(projectsTable).where(eq(projectsTable.ownerId, ownerId)).limit(1);
     // An account remains initialized even after all projects are removed.
     const account = await tx.select({ id: platformAccountsTable.id }).from(platformAccountsTable).where(eq(platformAccountsTable.ownerId, ownerId)).limit(1);
+    // Real accounts get connection slots, never example clips, campaigns or activity.
+    if (ownerId.startsWith("user:")) {
+      if (!account.length) await tx.insert(platformAccountsTable).values(["YouTube Shorts", "TikTok", "Instagram Reels", "X"].map((platform) => ({ ownerId, platform })));
+      return;
+    }
     if (existing.length || account.length) return;
     const campaigns = await tx.insert(campaignsTable).values([
       { ownerId, name: "Next Level Energy", brand: "PULSE", cpm: 3.5, budget: 5000, views: 148200, affiliateUrl: "https://example.com/pulse", cta: "Explore the sponsor link in our bio. #ad", status: "active", demo: true },

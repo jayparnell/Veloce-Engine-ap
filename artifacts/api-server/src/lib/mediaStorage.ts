@@ -12,6 +12,17 @@ export async function storeBytes(bytes: Buffer, owner: string, contentType: stri
   await setObjectAclPolicy(file, { owner, visibility: "private" });
   return objectPath;
 }
+/** Stream large remote sources from disk rather than allocating a multi-GB Buffer. */
+export async function storeLocalFile(path: string, owner: string, contentType: string) {
+  const objectPath = `/objects/${randomUUID()}`;
+  const fullPath = `${storage.getPrivateObjectDir()}${objectPath.slice("/objects".length)}`;
+  const [, bucket, ...parts] = fullPath.split("/");
+  const [file] = await objectStorageClient.bucket(bucket!).upload(path, {
+    destination: parts.join("/"), resumable: true, metadata: { contentType },
+  });
+  await setObjectAclPolicy(file, { owner, visibility: "private" });
+  return objectPath;
+}
 export async function ownedFile(objectPath: string, owner: string) {
   if (!/^\/objects\/[a-zA-Z0-9/_-]+$/.test(objectPath)) throw new Error("Invalid media path");
   const file = await storage.getObjectEntityFile(objectPath);

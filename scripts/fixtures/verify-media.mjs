@@ -21,7 +21,8 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 if (process.argv.includes("--cleanup-session")) {
   const saved = JSON.parse(await readFile(sessionFile, "utf8"));
-  await pool.query("DELETE FROM sessions WHERE sid=$1", [saved.cookie.value]);
+  await pool.query("DELETE FROM sessions WHERE sid=ANY($1::varchar[])", [saved.sessionIds ?? [saved.cookie.value]]);
+  await pool.query("DELETE FROM sessions WHERE sess->'auth'->'user'->>'id'=$1 OR sess->'user'->>'id'=$1", [saved.userId]);
   await rm(sessionFile, { force: true });
   await pool.end();
   console.log("Removed the isolated development test session.");
@@ -34,16 +35,33 @@ await pool.query("INSERT INTO sessions (sid,sess,expire) VALUES ($1,$2,$3)", [
   sid, JSON.stringify({ user: { id: userId, email: null, firstName: "Media", lastName: "Smoke", profileImageUrl: null }, access_token: "isolated-development-fixture", expires_at: Math.floor(Date.now() / 1000) + 3600 }),
   new Date(Date.now() + 3600000),
 ]);
-const cookie = { name: "sid", value: sid, domain: new URL(origin).hostname, path: "/", httpOnly: true, secure: true, sameSite: "Lax" };
-await writeFile(sessionFile, JSON.stringify({ cookie, origin, userId }), { mode: 0o600 });
+let cookie = { name: "sid", value: sid, domain: new URL(origin).hostname, path: "/", httpOnly: true, secure: true, sameSite: "Lax" };
+const sessionIds = [sid];
+async function retainSession() {
+  await writeFile(sessionFile, JSON.stringify({ cookie, origin, userId, sessionIds }), { mode: 0o600 });
+}
+await retainSession();
 await mkdir(directory, { recursive: true });
 async function api(path, body, method = "POST") {
   const response = await fetch(`${origin}/api${path}`, {
     method: body === undefined ? "GET" : method,
-    headers: { Cookie: `sid=${sid}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+    headers: { Cookie: `${cookie.name}=${cookie.value}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     redirect: "manual",
   });
+  const signed = response.headers.getSetCookie().find((value) => value.startsWith("veloce.sid="));
+  if (signed) {
+    const value = signed.split(";")[0].slice("veloce.sid=".length);
+    cookie = { ...cookie, name: "veloce.sid", value };
+    const decoded = decodeURIComponent(value);
+    const newSid = decoded.slice(2, decoded.lastIndexOf("."));
+    if (!sessionIds.includes(newSid)) sessionIds.push(newSid);
+    // Preview's iframe proxy may rewrite Lax to None; the stored cookie config
+    // must still be Lax for direct/published access. Never print cookie values.
+    assert(/HttpOnly/i.test(signed), "Missing HttpOnly on session cookie");
+    assert(/Secure/i.test(signed), "Missing Secure on session cookie");
+    await retainSession();
+  }
   const text = await response.text();
   assert(response.ok, `${method} ${path}: ${response.status} ${text.slice(0, 300)}`);
   return text ? JSON.parse(text) : null;
@@ -58,7 +76,17 @@ async function upload(bytes, name, contentType) {
 try {
   const auth = await api("/auth/user");
   assert.equal(auth.user.id, userId);
+  assert.equal(cookie.name, "veloce.sid", "Legacy session was not migrated to the signed browser cookie");
+  const persisted = await pool.query("SELECT sess FROM sessions WHERE sid=$1", [sessionIds.at(-1)]);
+  assert.equal(persisted.rows[0]?.sess.auth.user.id, userId);
+  assert.equal(persisted.rows[0]?.sess.cookie.sameSite, "lax");
+  assert.equal(persisted.rows[0]?.sess.cookie.originalMaxAge, 7 * 86400000);
+  assert.equal((await api("/auth/user")).user.id, userId, "Signed session did not survive another request");
   const summary = await api("/studio/summary");
+  assert.equal(summary.demo, false);
+  assert.equal(summary.totalClips, 0, "New signed-in account received seeded clips");
+  assert.equal((await api("/projects")).length, 0);
+  assert.equal((await api("/trending")).length, 0);
   assert(summary.capabilities.uploads && summary.capabilities.ai && summary.capabilities.media);
   await api("/settings/integrations/youtube", { clientId: "veloce-test.apps.googleusercontent.com", appApproved: false }, "PUT");
   const settings = await api("/settings/integrations");
@@ -67,7 +95,7 @@ try {
   assert.equal(youtube.secretConfigured, false);
   assert.equal(youtube.connected, false);
   assert.equal(youtube.canConnect, false);
-  const notReady = await fetch(`${origin}/api/social/oauth/youtube/start`, { headers: { Cookie: `sid=${sid}` }, redirect: "manual" });
+  const notReady = await fetch(`${origin}/api/social/oauth/youtube/start`, { headers: { Cookie: `${cookie.name}=${cookie.value}` }, redirect: "manual" });
   assert.equal(notReady.status, 409);
   const sourcePath = await upload(await readFile(fixture), "authorized-source.mp4", "video/mp4");
   console.log("Verified private source upload and persisted OAuth public configuration.");
@@ -76,7 +104,8 @@ try {
   assert.equal(bed.status, 0, "Could not create synthetic campaign bed");
   const audioPath = await upload(await readFile(bedFile), "campaign-bed.mp3", "audio/mpeg");
   const campaign = await api("/campaigns", { name: "Synthetic media verification", brand: "Veloce test fixture", cpm: 0, budget: 0, status: "active", affiliateUrl: "", cta: "Review your work", audioPath });
-  const project = await api("/projects", { sourceUrl: sourcePath, mode: "commentary", clipCount: 1, rightsConfirmed: true, demo: false, campaignId: campaign.id });
+  const project = await api("/projects", { sourceUrl: sourcePath, mode: "commentary", clipCount: 1, rightsConfirmed: true, demo: true, campaignId: campaign.id });
+  assert.equal(project.demo, false, "Signed-in demo input was not overridden to real processing");
   console.log(`Queued real project ${project.id}; one clip with campaign audio.`);
   let current = project;
   let stage = "";
@@ -91,7 +120,7 @@ try {
   const clips = await api("/clips");
   const clip = clips.find((c) => c.projectId === project.id && !c.demo);
   assert(clip && clip.videoUrl, "Completed job did not create a non-demo video");
-  const video = await fetch(`${origin}${clip.videoUrl}`, { headers: { Cookie: `sid=${sid}`, Range: "bytes=0-1023" } });
+  const video = await fetch(`${origin}${clip.videoUrl}`, { headers: { Cookie: `${cookie.name}=${cookie.value}`, Range: "bytes=0-1023" } });
   assert.equal(video.status, 206);
   assert.match(video.headers.get("Content-Range"), /^bytes 0-1023\/\d+$/);
   assert.equal((await video.arrayBuffer()).byteLength, 1024);
@@ -102,7 +131,7 @@ try {
   }
   const exported = await api("/exports", { clipIds: [clip.id] });
   assert.equal(exported.includesVideo, true);
-  const zip = await fetch(`${origin}${exported.downloadUrl}`, { headers: { Cookie: `sid=${sid}` } });
+  const zip = await fetch(`${origin}${exported.downloadUrl}`, { headers: { Cookie: `${cookie.name}=${cookie.value}` } });
   assert.equal(zip.status, 200);
   const zipFile = `${directory}/veloce-export.zip`;
   await writeFile(zipFile, Buffer.from(await zip.arrayBuffer()));

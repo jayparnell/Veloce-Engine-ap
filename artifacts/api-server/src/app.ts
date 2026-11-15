@@ -6,6 +6,7 @@ import { logger } from "./lib/logger";
 import cookieParser from "cookie-parser";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import { workspaceMiddleware } from "./middlewares/workspace";
+import { browserSessions } from "./lib/browserSession";
 
 const app: Express = express();
 
@@ -33,6 +34,7 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use("/api", browserSessions);
 app.use(authMiddleware);
 app.use("/api", workspaceMiddleware);
 

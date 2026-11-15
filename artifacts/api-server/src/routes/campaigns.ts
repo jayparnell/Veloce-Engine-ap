@@ -20,7 +20,7 @@ async function validateAssets(data: { affiliateUrl: string; audioPath?: string; 
   }
 }
 router.get("/campaigns", async (req, res): Promise<void> => {
-  const rows = await db.select().from(campaignsTable).where(eq(campaignsTable.ownerId, req.workspaceId)).orderBy(desc(campaignsTable.id));
+  const rows = await db.select().from(campaignsTable).where(and(eq(campaignsTable.ownerId, req.workspaceId), req.isAuthenticated() ? eq(campaignsTable.demo, false) : undefined)).orderBy(desc(campaignsTable.id));
   res.json(ListCampaignsResponse.parse(rows.map(campaignData)));
 });
 router.post("/campaigns", async (req, res): Promise<void> => {

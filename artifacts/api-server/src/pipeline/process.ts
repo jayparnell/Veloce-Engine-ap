@@ -6,10 +6,11 @@ import { eq, and } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { batchProcess } from "@workspace/integrations-openai-ai-server/batch";
 import { z } from "zod";
-import { ownedFile, storeBytes } from "../lib/mediaStorage";
+import { ownedFile, storeBytes, storeLocalFile } from "../lib/mediaStorage";
 import { finalizeUpload } from "../lib/uploads";
 import { sampleClips } from "../lib/demo";
 import { transcribeSource, synthesizeVoiceover } from "./audio";
+import { ingestVod, sourceToolError, SourceIngestionError, MAX_REMOTE_BYTES } from "./ingestion";
 
 const root = resolve(process.cwd(), "../..");
 const workRoot = join(root, "generated-artifacts", "media-work");
@@ -24,7 +25,9 @@ export function command(executable: string, args: string[], timeout = 300000): P
     let error = "";
     const timer = setTimeout(() => {
       try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch {}
-      reject(new Error("Media processing timed out. Use a shorter source and retry."));
+      reject(executable === "yt-dlp"
+        ? new SourceIngestionError("Remote download exceeded its 15-minute attempt limit.")
+        : new Error("Media processing timed out. Use a shorter source and retry."));
     }, timeout);
     child.stdout.on("data", (chunk: Buffer) => { if (out.length < 8_000_000) out += chunk.toString(); });
     child.stderr.on("data", (chunk: Buffer) => { error = (error + chunk.toString()).slice(-2000); });
@@ -33,8 +36,9 @@ export function command(executable: string, args: string[], timeout = 300000): P
       clearTimeout(timer);
       if (code === 0) resolveOutput(out);
       else {
-        let message = executable === "yt-dlp" ? "The source platform blocked access or the VOD is unavailable. Upload an authorized MP4 instead." : `Media tool failed (${code}). The source may be unsupported or missing audio.`;
-        if (error.includes("Source duration must")) message = "Source must be between 30 seconds and 30 minutes long. Upload a supported MP4 and retry.";
+        if (executable === "yt-dlp") { reject(new SourceIngestionError(sourceToolError(error))); return; }
+        let message = `Media tool failed (${code}). The source may be unsupported or missing audio.`;
+        if (error.includes("Source duration must")) message = "Source must be between 30 seconds and 60 minutes long. Upload a supported MP4 and retry.";
         if (error.includes("Source video must contain")) message = "Source video must contain an audible audio track.";
         if (error.includes("Voiceover is too long")) message = "Voiceover is too long for this clip. Retry this batch for a shorter commentary.";
         reject(new Error(message));
@@ -80,25 +84,25 @@ export async function runMedia(project: Project) {
       if (Number(meta.size) > 524288000) throw new Error("Source exceeds the 500 MB upload limit.");
       await sourceFile.download({ destination: source });
     } else {
-      await command("yt-dlp", ["--no-playlist", "--no-warnings", "--socket-timeout", "30", "--retries", "2", "--max-filesize", "300M",
-        "--match-filter", "!is_live", "--download-sections", "*0-600", "-f", "best[ext=mp4][height<=1080]/best[height<=1080]",
-        "--merge-output-format", "mp4", "-o", source, "--", project.sourceUrl], 240000);
+      await ingestVod(project.sourceUrl, source, command);
     }
     const size = await stat(source).catch(() => null);
     if (!size || size.size < 1000) throw new Error("No downloadable VOD was found. Live streams are not supported yet; use a completed VOD or upload an MP4.");
+    if (!project.sourceUrl.startsWith("/objects/") && size.size > MAX_REMOTE_BYTES) throw new Error("Source exceeds the 2 GB remote download limit. Upload a smaller authorized MP4.");
     const analysisPath = join(dir, "analysis.json");
     await command(python, [worker, "analyze", source, analysisPath], 900000);
     const analysis = JSON.parse(await readFile(analysisPath, "utf8")) as {
       duration: number; chunks: { path: string; start: number; end: number }[]; candidates: { start: number; end: number; energy: number }[]; face: number[] | null;
     };
-    const objectPath = project.sourceUrl.startsWith("/objects/") ? project.sourceUrl : await storeBytes(await readFile(source), project.ownerId, "video/mp4");
+    const objectPath = project.sourceUrl.startsWith("/objects/") ? project.sourceUrl : await storeLocalFile(source, project.ownerId, "video/mp4");
     const [sourceRow] = await db.insert(sourceVideosTable).values({ projectId: project.id, title: "Authorized source video", objectPath, duration: analysis.duration }).returning();
     await progress(project, 1, 16, "Source persisted · transcribing with Replit AI");
     const segments = await transcribeSource(analysis.chunks);
     if (!segments.some((s) => s.text.length > 10)) throw new Error("No intelligible speech was found. Try a source with audible dialogue.");
     await db.update(sourceVideosTable).set({ transcript: segments }).where(eq(sourceVideosTable.id, sourceRow!.id));
     await progress(project, 2, 30, "Source analyzed · selecting moments");
-    const transcript = segments.map((s) => `[${s.start.toFixed(1)}–${s.end.toFixed(1)}] ${s.text}`).join("\n").slice(0, 70000);
+    // Preserve every chunk of a full hour; never silently discard the ending.
+    const transcript = segments.map((s) => `[${s.start.toFixed(1)}–${s.end.toFixed(1)}] ${s.text}`).join("\n");
     const [response] = await batchProcess([project.id], async () => openai.chat.completions.create({
       model: "gpt-5.4-mini", max_completion_tokens: 8192, response_format: { type: "json_object" },
       messages: [

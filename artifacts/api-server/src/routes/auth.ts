@@ -6,6 +6,7 @@ import {
 import { db, usersTable } from '@workspace/db';
 import { Router, type IRouter, type Request, type Response } from 'express';
 import * as oidc from 'openid-client';
+import { BROWSER_COOKIE } from '../lib/browserSession';
 
 import {
   clearSession,
@@ -15,29 +16,22 @@ import {
   getSessionId,
   ISSUER_URL,
   SESSION_COOKIE,
-  SESSION_TTL,
   type SessionData,
 } from '../lib/auth';
 
 const OIDC_COOKIE_TTL = 10 * 60 * 1000;
 
 const router: IRouter = Router();
+router.use((_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 
 function getOrigin(req: Request): string {
-  const proto = req.headers['x-forwarded-proto'] || 'https';
-  const host =
-    req.headers['x-forwarded-host'] || req.headers['host'] || 'localhost';
-  return `${proto}://${host}`;
-}
-
-function setSessionCookie(res: Response, sid: string) {
-  res.cookie(SESSION_COOKIE, sid, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: SESSION_TTL,
-  });
+  // The trusted proxy preserves the browser host. Never pin callbacks to Preview.
+  const host = req.hostname;
+  if (!host || !/^[a-zA-Z0-9.-]+(?::\d+)?$/.test(host)) throw new Error('Invalid authentication host');
+  return `https://${host}`;
 }
 
 function setOidcCookie(res: Response, name: string, value: string) {
@@ -220,8 +214,13 @@ router.get('/callback', async (req: Request, res: Response) => {
     expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,
   };
 
-  const sid = await createSession(sessionData);
-  setSessionCookie(res, sid);
+  const oldSid = getSessionId(req);
+  // Rotate on login, persist before redirect, and keep the cookie host-only.
+  await new Promise<void>((resolve, reject) => req.session.regenerate((err) => err ? reject(err) : resolve()));
+  req.session.auth = sessionData;
+  await new Promise<void>((resolve, reject) => req.session.save((err) => err ? reject(err) : resolve()));
+  if (oldSid) await deleteSession(oldSid);
+  res.clearCookie(SESSION_COOKIE, { path: '/' });
   res.redirect(returnTo);
 });
 
@@ -233,6 +232,8 @@ router.get('/logout', async (req: Request, res: Response) => {
 
   const sid = getSessionId(req);
   await clearSession(res, sid);
+  if (req.session) await new Promise<void>((resolve, reject) => req.session.destroy((err) => err ? reject(err) : resolve()));
+  res.clearCookie(BROWSER_COOKIE, { path: '/', secure: true, httpOnly: true, sameSite: 'lax' });
 
   const endSessionUrl = oidc.buildEndSessionUrl(config, {
     client_id: process.env.REPL_ID!,

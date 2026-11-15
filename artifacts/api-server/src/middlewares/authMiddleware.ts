@@ -29,7 +29,7 @@ declare global {
 }
 
 async function refreshIfExpired(
-  sid: string,
+  sid: string | undefined,
   session: SessionData,
 ): Promise<SessionData | null> {
   const now = Math.floor(Date.now() / 1000);
@@ -45,7 +45,7 @@ async function refreshIfExpired(
     session.expires_at = tokens.expiresIn()
       ? now + tokens.expiresIn()!
       : session.expires_at;
-    await updateSession(sid, session);
+    if (sid) await updateSession(sid, session);
     return session;
   } catch {
     return null;
@@ -61,26 +61,32 @@ export async function authMiddleware(
     return this.user != null;
   } as Request['isAuthenticated'];
 
+  const browserAuth = req.session?.auth;
   const sid = getSessionId(req);
-  if (!sid) {
+  if (!browserAuth && !sid) {
     next();
     return;
   }
 
-  const session = await getSession(sid);
+  const session = browserAuth ?? await getSession(sid!);
   if (!session?.user?.id) {
     await clearSession(res, sid);
+    if (req.session?.auth) await new Promise<void>((resolve, reject) => req.session.destroy((err) => err ? reject(err) : resolve()));
     next();
     return;
   }
 
-  const refreshed = await refreshIfExpired(sid, session);
+  const refreshed = await refreshIfExpired(browserAuth ? undefined : sid, session);
   if (!refreshed) {
     await clearSession(res, sid);
+    if (req.session?.auth) await new Promise<void>((resolve, reject) => req.session.destroy((err) => err ? reject(err) : resolve()));
     next();
     return;
   }
 
   req.user = refreshed.user;
+  if (req.session && !req.headers.authorization && (!browserAuth || refreshed !== browserAuth || session.expires_at !== browserAuth.expires_at)) {
+    req.session.auth = refreshed;
+  }
   next();
 }

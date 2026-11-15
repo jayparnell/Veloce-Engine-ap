@@ -12,6 +12,13 @@ spec.loader.exec_module(worker)
 
 
 class MediaWorkerTests(unittest.TestCase):
+    def test_full_hour_limit_without_truncation(self):
+        for duration in [30, 601, 1801, 3599.9, 3600]:
+            worker.validate_source_duration(duration)
+        for duration in [29.9, 3600.1, float("inf"), float("nan")]:
+            with self.assertRaisesRegex(ValueError, "60 minutes"):
+                worker.validate_source_duration(duration)
+
     def test_words_have_individual_monotonic_times(self):
         words = worker.timed_words("Short sentences make explanations useful.", [[0.1, .8], [1.2, 3]], 3)
         self.assertEqual(len(words), 5)

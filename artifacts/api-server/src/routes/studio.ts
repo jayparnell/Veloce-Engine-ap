@@ -16,9 +16,9 @@ export function validSource(source: string) {
 }
 router.get("/studio/summary", async (req, res): Promise<void> => {
   const [clips, projects, campaigns, activity] = await Promise.all([
-    db.select().from(generatedClipsTable).where(eq(generatedClipsTable.ownerId, req.workspaceId)),
-    db.select().from(projectsTable).where(eq(projectsTable.ownerId, req.workspaceId)),
-    db.select().from(campaignsTable).where(eq(campaignsTable.ownerId, req.workspaceId)),
+    db.select().from(generatedClipsTable).where(and(eq(generatedClipsTable.ownerId, req.workspaceId), req.isAuthenticated() ? eq(generatedClipsTable.demo, false) : undefined)),
+    db.select().from(projectsTable).where(and(eq(projectsTable.ownerId, req.workspaceId), req.isAuthenticated() ? eq(projectsTable.demo, false) : undefined)),
+    db.select().from(campaignsTable).where(and(eq(campaignsTable.ownerId, req.workspaceId), req.isAuthenticated() ? eq(campaignsTable.demo, false) : undefined)),
     db.select().from(analyticsLogsTable).where(eq(analyticsLogsTable.ownerId, req.workspaceId)).orderBy(desc(analyticsLogsTable.id)).limit(8),
   ]);
   res.json(GetStudioSummaryResponse.parse({
@@ -26,18 +26,18 @@ router.get("/studio/summary", async (req, res): Promise<void> => {
     activeBatches: projects.filter((p) => ["queued", "processing"].includes(p.status)).length,
     averageScore: clips.length ? Math.round(clips.reduce((sum, c) => sum + c.score, 0) / clips.length) : 0,
     estimatedPayout: Math.round(campaigns.reduce((sum, c) => sum + Math.min(c.budget, c.views * c.cpm / 1000), 0) * 100) / 100,
-    demo: !clips.some((c) => !c.demo), activity: activity.map(jsonDates),
+    demo: !req.isAuthenticated(), activity: activity.filter((a) => !req.isAuthenticated() || !/example workspace|demo batch/i.test(a.message)).map(jsonDates),
     capabilities: getCapabilities(),
   }));
 });
-router.get("/trending", (_req, res) => { res.json(ListTrendingSourcesResponse.parse(trendingSources)); });
+router.get("/trending", (req, res) => { res.json(ListTrendingSourcesResponse.parse(req.isAuthenticated() ? [] : trendingSources)); });
 router.get("/projects", async (req, res): Promise<void> => {
-  res.json(ListProjectsResponse.parse((await db.select().from(projectsTable).where(eq(projectsTable.ownerId, req.workspaceId)).orderBy(desc(projectsTable.id))).map(jsonDates)));
+  res.json(ListProjectsResponse.parse((await db.select().from(projectsTable).where(and(eq(projectsTable.ownerId, req.workspaceId), req.isAuthenticated() ? eq(projectsTable.demo, false) : undefined)).orderBy(desc(projectsTable.id))).map(jsonDates)));
 });
 router.post("/projects", async (req, res): Promise<void> => {
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Provide a source URL, transformation mode, and 1–4 clips." }); return; }
-  const input = parsed.data;
+  const input = { ...parsed.data, demo: req.isAuthenticated() ? false : parsed.data.demo };
   if (!input.rightsConfirmed) { res.status(400).json({ error: "Confirm you have permission to process and reuse this footage." }); return; }
   if (!input.demo && !req.isAuthenticated()) { res.status(401).json({ error: "Log in to process your own media, or try a demo batch." }); return; }
   if (!input.demo) {
@@ -89,7 +89,7 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 router.get("/clips", async (req, res): Promise<void> => {
-  res.json(ListClipsResponse.parse((await db.select().from(generatedClipsTable).where(eq(generatedClipsTable.ownerId, req.workspaceId)).orderBy(desc(generatedClipsTable.id))).map(jsonDates)));
+  res.json(ListClipsResponse.parse((await db.select().from(generatedClipsTable).where(and(eq(generatedClipsTable.ownerId, req.workspaceId), req.isAuthenticated() ? eq(generatedClipsTable.demo, false) : undefined)).orderBy(desc(generatedClipsTable.id))).map(jsonDates)));
 });
 router.patch("/clips/:id", async (req, res): Promise<void> => {
   const params = UpdateClipParams.safeParse(req.params);
