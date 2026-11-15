@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Veloce Engine"
+description = "A video content production studio for turning authorized long-form source media into commentary-led vertical clips, managing sponsor campaigns and preparing publishing packages."
+version = "1.0.0"
+id = "artifacts/veloce-engine"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23805
+
+[services.development]
+run = "pnpm --filter @workspace/veloce-engine run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/veloce-engine", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/veloce-engine/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23805"
+BASE_PATH = "/"

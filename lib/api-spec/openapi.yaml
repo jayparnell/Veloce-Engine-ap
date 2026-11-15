@@ -1,36 +1,517 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 1.0.0
+  description: Veloce Engine content production API
 servers:
   - url: /api
-    description: Base API path
-tags:
-  - name: health
-    description: Health operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
-      tags: [health]
-      summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
           content:
             application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+  /studio/summary:
+    get:
+      operationId: getStudioSummary
+      responses:
+        "200":
+          description: Workspace production summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StudioSummary" }
+  /trending:
+    get:
+      operationId: listTrendingSources
+      responses:
+        "200":
+          description: Curated example sources, not a live feed
+          content:
+            application/json:
               schema:
-                $ref: "#/components/schemas/HealthStatus"
+                type: array
+                items: { $ref: "#/components/schemas/TrendingSource" }
+  /projects:
+    get:
+      operationId: listProjects
+      responses:
+        "200":
+          description: Production batches
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Project" }
+    post:
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProjectInput" }
+      responses:
+        "201":
+          description: Batch queued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+  /projects/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      operationId: getProject
+      responses:
+        "200":
+          description: Batch progress
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+    delete:
+      operationId: deleteProject
+      responses:
+        "204": { description: Deleted }
+  /clips:
+    get:
+      operationId: listClips
+      responses:
+        "200":
+          description: Clip vault
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Clip" }
+  /clips/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateClip
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClipUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Clip" }
+    delete:
+      operationId: deleteClip
+      responses:
+        "204": { description: Deleted }
+  /exports:
+    post:
+      operationId: createExport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExportInput" }
+      responses:
+        "200":
+          description: Download link for ZIP containing available renders and metadata
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExportResult" }
+  /campaigns:
+    get:
+      operationId: listCampaigns
+      responses:
+        "200":
+          description: Campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Campaign" }
+    post:
+      operationId: createCampaign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Campaign" }
+  /campaigns/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateCampaign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Campaign" }
+    delete:
+      operationId: deleteCampaign
+      responses:
+        "204": { description: Deleted }
+  /schedules:
+    get:
+      operationId: listSchedules
+      responses:
+        "200":
+          description: Publishing plans; no automatic delivery without OAuth
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Schedule" }
+    post:
+      operationId: createSchedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScheduleInput" }
+      responses:
+        "201":
+          description: Publishing draft saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Schedule" }
+  /schedules/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    delete:
+      operationId: deleteSchedule
+      responses:
+        "204": { description: Removed }
+  /accounts:
+    get:
+      operationId: listPlatformAccounts
+      responses:
+        "200":
+          description: Platform OAuth readiness
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PlatformAccount" }
+  /playbook:
+    get:
+      operationId: getPlaybook
+      responses:
+        "200":
+          description: Operator training
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PlaybookLesson" }
+  /playbook/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateLesson
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LessonUpdate" }
+      responses:
+        "200":
+          description: Training progress saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlaybookLesson" }
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadInput" }
+      responses:
+        "200":
+          description: Signed upload URL
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadResult" }
+  /auth/user:
+    get:
+      operationId: getCurrentAuthUser
+      responses:
+        "200":
+          description: Session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthState" }
+  /login:
+    get:
+      operationId: login
+      parameters:
+        - { name: returnTo, in: query, schema: { type: string } }
+      responses:
+        "302": { description: Redirect to login }
+  /logout:
+    get:
+      operationId: logout
+      parameters:
+        - { name: returnTo, in: query, schema: { type: string } }
+      responses:
+        "302": { description: Log out }
+  /mobile-auth/token-exchange:
+    post:
+      operationId: exchangeMobileAuthorizationCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MobileAuthInput" }
+      responses:
+        "200":
+          description: Session
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
-        status:
-          type: string
-      required:
-        - status
-
+        status: { type: string }
+    StudioSummary:
+      type: object
+      required: [totalClips, readyClips, activeBatches, averageScore, estimatedPayout, demo, activity, capabilities]
+      properties:
+        totalClips: { type: integer }
+        readyClips: { type: integer }
+        activeBatches: { type: integer }
+        averageScore: { type: number }
+        estimatedPayout: { type: number }
+        demo: { type: boolean }
+        activity:
+          type: array
+          items: { $ref: "#/components/schemas/Activity" }
+        capabilities:
+          type: object
+          required: [media, ai, publishing, uploads]
+          properties:
+            media: { type: boolean }
+            ai: { type: boolean }
+            publishing: { type: boolean }
+            uploads: { type: boolean }
+    Activity:
+      type: object
+      required: [id, message, createdAt]
+      properties:
+        id: { type: integer }
+        message: { type: string }
+        createdAt: { type: string }
+    TrendingSource:
+      type: object
+      required: [id, title, creator, platform, category, viewers, thumbnail, url, demo]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        creator: { type: string }
+        platform: { type: string }
+        category: { type: string }
+        viewers: { type: string }
+        thumbnail: { type: string }
+        url: { type: string }
+        demo: { type: boolean }
+    ProjectInput:
+      type: object
+      required: [sourceUrl, mode, clipCount, rightsConfirmed]
+      properties:
+        sourceUrl: { type: string, minLength: 1, maxLength: 2048 }
+        mode: { type: string, enum: [commentary, story, bounty] }
+        clipCount: { type: integer, minimum: 1, maximum: 4 }
+        campaignId: { type: integer }
+        rightsConfirmed: { type: boolean }
+        demo: { type: boolean }
+    Project:
+      type: object
+      required: [id, title, sourceUrl, mode, clipCount, status, stage, progress, error, demo, createdAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        sourceUrl: { type: string }
+        mode: { type: string }
+        clipCount: { type: integer }
+        campaignId: { type: [integer, "null"] }
+        status: { type: string }
+        stage: { type: integer }
+        progress: { type: integer }
+        error: { type: [string, "null"] }
+        demo: { type: boolean }
+        createdAt: { type: string }
+    Clip:
+      type: object
+      required: [id, projectId, title, creator, mode, duration, score, hookScore, visualScore, commentaryScore, thumbnail, videoUrl, status, demo, hook, script, hashtags, pinnedComment, platforms, captions, pictureInPicture, createdAt]
+      properties:
+        id: { type: integer }
+        projectId: { type: integer }
+        title: { type: string }
+        creator: { type: string }
+        mode: { type: string }
+        duration: { type: number }
+        score: { type: number }
+        hookScore: { type: number }
+        visualScore: { type: number }
+        commentaryScore: { type: number }
+        thumbnail: { type: string }
+        videoUrl: { type: string }
+        status: { type: string }
+        demo: { type: boolean }
+        hook: { type: string }
+        script: { type: string }
+        hashtags: { type: string }
+        pinnedComment: { type: string }
+        platforms:
+          type: array
+          items: { type: string }
+        captions: { type: boolean }
+        pictureInPicture: { type: boolean }
+        campaignId: { type: [integer, "null"] }
+        createdAt: { type: string }
+    ClipUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        hook: { type: string, maxLength: 500 }
+        script: { type: string, maxLength: 10000 }
+        hashtags: { type: string, maxLength: 1000 }
+        pinnedComment: { type: string, maxLength: 2000 }
+        captions: { type: boolean }
+        pictureInPicture: { type: boolean }
+        campaignId: { type: [integer, "null"] }
+    ExportInput:
+      type: object
+      required: [clipIds]
+      properties:
+        clipIds:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { type: integer }
+    ExportResult:
+      type: object
+      required: [downloadUrl, filename, includesVideo, message]
+      properties:
+        downloadUrl: { type: string }
+        filename: { type: string }
+        includesVideo: { type: boolean }
+        message: { type: string }
+    CampaignInput:
+      type: object
+      required: [name, brand, cpm, budget, status, affiliateUrl, cta]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        brand: { type: string, minLength: 1, maxLength: 100 }
+        cpm: { type: number, minimum: 0, maximum: 10000 }
+        budget: { type: number, minimum: 0 }
+        status: { type: string, enum: [active, paused, completed] }
+        affiliateUrl: { type: string, maxLength: 2048 }
+        cta: { type: string, maxLength: 500 }
+        audioPath: { type: string }
+        watermarkPath: { type: string }
+    Campaign:
+      allOf:
+        - { $ref: "#/components/schemas/CampaignInput" }
+        - type: object
+          required: [id, views, payout, demo, createdAt]
+          properties:
+            id: { type: integer }
+            views: { type: integer }
+            payout: { type: number }
+            demo: { type: boolean }
+            createdAt: { type: string }
+    ScheduleInput:
+      type: object
+      required: [clipId, platform, scheduledAt]
+      properties:
+        clipId: { type: integer }
+        platform: { type: string, enum: [YouTube Shorts, TikTok, Instagram Reels, X] }
+        scheduledAt: { type: string, format: date-time }
+    Schedule:
+      allOf:
+        - { $ref: "#/components/schemas/ScheduleInput" }
+        - type: object
+          required: [id, title, status, demo]
+          properties:
+            id: { type: integer }
+            title: { type: string }
+            status: { type: string }
+            demo: { type: boolean }
+    PlatformAccount:
+      type: object
+      required: [id, platform, connected, handle, message]
+      properties:
+        id: { type: integer }
+        platform: { type: string }
+        connected: { type: boolean }
+        handle: { type: string }
+        message: { type: string }
+    PlaybookLesson:
+      type: object
+      required: [id, title, category, minutes, content, completed]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        category: { type: string }
+        minutes: { type: integer }
+        content: { type: string }
+        completed: { type: boolean }
+    LessonUpdate:
+      type: object
+      required: [completed]
+      properties:
+        completed: { type: boolean }
+    UploadInput:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1 }
+        size: { type: integer, minimum: 1, maximum: 524288000 }
+        contentType: { type: string }
+    UploadResult:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL: { type: string }
+        objectPath: { type: string }
+    AuthState:
+      type: object
+      required: [user, isAuthenticated]
+      properties:
+        isAuthenticated: { type: boolean }
+        user:
+          type: [object, "null"]
+          required: [id]
+          properties:
+            id: { type: string }
+            email: { type: [string, "null"] }
+            firstName: { type: [string, "null"] }
+            lastName: { type: [string, "null"] }
+            profileImageUrl: { type: [string, "null"] }
+    MobileAuthInput:
+      type: object
+      required: [code, codeVerifier, redirectUri, state, nonce]
+      properties:
+        code: { type: string }
+        codeVerifier: { type: string }
+        redirectUri: { type: string }
+        state: { type: string }
+        nonce: { type: string }
