@@ -255,6 +255,68 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AuthState" }
+  /storage/uploads/finalize:
+    post:
+      operationId: finalizeMediaUpload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadFinalizeInput" }
+      responses:
+        "200":
+          description: Verified private upload
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadFinalizeInput" }
+  /settings/integrations:
+    get:
+      operationId: getSocialIntegrations
+      responses:
+        "200":
+          description: Public configuration and secret-presence flags only
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialIntegration" }
+  /settings/integrations/{provider}:
+    parameters:
+      - { name: provider, in: path, required: true, schema: { type: string, enum: [youtube, tiktok] } }
+    put:
+      operationId: saveSocialIntegration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialIntegrationInput" }
+      responses:
+        "200":
+          description: Saved configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialIntegration" }
+    delete:
+      operationId: disconnectSocialIntegration
+      responses:
+        "204": { description: Local account connection removed }
+  /social/oauth/{provider}/start:
+    get:
+      operationId: beginSocialAuthorization
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [youtube, tiktok] } }
+      responses:
+        "302": { description: Redirect to platform consent after configuration checks }
+        "401": { description: Login required }
+        "409": { description: Configuration or approval missing }
+  /social/oauth/{provider}/callback:
+    get:
+      operationId: finishSocialAuthorization
+      description: Platform OAuth callback accepts provider-returned state, code and error query fields; state is single-use, owner-bound and expires after ten minutes.
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [youtube, tiktok] } }
+      responses:
+        "302": { description: Return to Settings with authorization result; no credentials returned }
   /login:
     get:
       operationId: login
@@ -515,3 +577,31 @@ components:
         redirectUri: { type: string }
         state: { type: string }
         nonce: { type: string }
+    UploadFinalizeInput:
+      type: object
+      required: [objectPath]
+      properties:
+        objectPath: { type: string, pattern: "^/objects/[a-zA-Z0-9/_-]+$" }
+    SocialIntegrationInput:
+      type: object
+      required: [clientId, appApproved]
+      properties:
+        clientId: { type: string, maxLength: 500 }
+        appApproved: { type: boolean }
+    SocialIntegration:
+      allOf:
+        - { $ref: "#/components/schemas/SocialIntegrationInput" }
+        - type: object
+          required: [provider, name, redirectUri, scopes, secretName, secretConfigured, apiKeyName, apiKeyConfigured, connected, canConnect, message]
+          properties:
+            provider: { type: string, enum: [youtube, tiktok] }
+            name: { type: string }
+            redirectUri: { type: string }
+            scopes: { type: string }
+            secretName: { type: string }
+            secretConfigured: { type: boolean }
+            apiKeyName: { type: string }
+            apiKeyConfigured: { type: boolean }
+            connected: { type: boolean }
+            canConnect: { type: boolean }
+            message: { type: string }

@@ -6,6 +6,7 @@ import { trendingSources } from "../lib/demo";
 import { finalizeUpload } from "../lib/uploads";
 import { ownedFile } from "../lib/mediaStorage";
 import { buildExport } from "../pipeline/export";
+import { getCapabilities } from "../lib/capabilities";
 
 const router: IRouter = Router();
 const jsonDates = <T extends { createdAt: Date }>(row: T) => ({ ...row, createdAt: row.createdAt.toISOString() });
@@ -26,7 +27,7 @@ router.get("/studio/summary", async (req, res): Promise<void> => {
     averageScore: clips.length ? Math.round(clips.reduce((sum, c) => sum + c.score, 0) / clips.length) : 0,
     estimatedPayout: Math.round(campaigns.reduce((sum, c) => sum + Math.min(c.budget, c.views * c.cpm / 1000), 0) * 100) / 100,
     demo: !clips.some((c) => !c.demo), activity: activity.map(jsonDates),
-    capabilities: { media: true, ai: true, publishing: false, uploads: req.isAuthenticated() },
+    capabilities: getCapabilities(),
   }));
 });
 router.get("/trending", (_req, res) => { res.json(ListTrendingSourcesResponse.parse(trendingSources)); });
@@ -39,6 +40,10 @@ router.post("/projects", async (req, res): Promise<void> => {
   const input = parsed.data;
   if (!input.rightsConfirmed) { res.status(400).json({ error: "Confirm you have permission to process and reuse this footage." }); return; }
   if (!input.demo && !req.isAuthenticated()) { res.status(401).json({ error: "Log in to process your own media, or try a demo batch." }); return; }
+  if (!input.demo) {
+    const capabilities = getCapabilities();
+    if (!capabilities.media || !capabilities.ai || !capabilities.uploads) { res.status(503).json({ error: "Real processing requires media tools, integrated AI and App Storage. Check Settings → Capabilities." }); return; }
+  }
   if (!input.demo && !validSource(input.sourceUrl) && !/^\/objects\/[a-zA-Z0-9/_-]+$/.test(input.sourceUrl)) {
     res.status(400).json({ error: "Use a YouTube, Twitch or Kick HTTPS URL, or upload an MP4 file." }); return;
   }

@@ -28,7 +28,7 @@ router.delete("/schedules/:id", async (req, res): Promise<void> => {
 });
 router.get("/accounts", async (req, res): Promise<void> => {
   const accounts = await db.select().from(platformAccountsTable).where(eq(platformAccountsTable.ownerId, req.workspaceId)).orderBy(asc(platformAccountsTable.id));
-  res.json(ListPlatformAccountsResponse.parse(accounts.map((a) => ({ ...a, message: "OAuth app configuration and platform approval required. Export packages and upload manually for now." }))));
+  res.json(ListPlatformAccountsResponse.parse(accounts.map((a) => ({ ...a, message: a.connected ? "Account authorized. Automatic posting is not enabled; export and upload manually." : "Configure OAuth in Settings after platform approval. Export packages and upload manually for now." }))));
 });
 router.get("/playbook", async (req, res): Promise<void> => {
   const progress = await db.select().from(trainingProgressTable).where(eq(trainingProgressTable.ownerId, req.workspaceId));

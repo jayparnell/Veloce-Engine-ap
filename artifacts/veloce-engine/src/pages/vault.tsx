@@ -39,13 +39,13 @@ function Preview({ clip, d, showHook, safe }: { clip: Clip; d: Draft; showHook: 
             <img src={clip.thumbnail} alt={clip.title} className="absolute inset-x-0 top-1/2 -translate-y-1/2 w-full aspect-video object-cover" />
           </>
         )}
-        {d.pictureInPicture && (
+        {!hasVideo && d.pictureInPicture && (
           <div className="absolute top-14 right-3 w-[30%] aspect-square rounded-lg border-2 border-emerald-500/70 bg-zinc-900/80 flex items-center justify-center">
             <span className="mono text-[8px] text-emerald-300 text-center leading-tight">FACECAM<br />SLOT</span>
           </div>
         )}
-        {showHook && d.hook && <div className="absolute top-4 inset-x-3 text-center"><span className="inline bg-amber-400 text-[#1a1203] text-[12px] font-bold leading-snug px-1.5 py-0.5 box-decoration-clone">{d.hook}</span></div>}
-        {d.captions && d.hook && (
+        {!hasVideo && showHook && d.hook && <div className="absolute top-4 inset-x-3 text-center"><span className="inline bg-amber-400 text-[#1a1203] text-[12px] font-bold leading-snug px-1.5 py-0.5 box-decoration-clone">{d.hook}</span></div>}
+        {!hasVideo && d.captions && d.hook && (
           <div className="absolute bottom-[22%] inset-x-4 text-center text-[15px] font-extrabold text-white [text-shadow:0_2px_0_#000,0_0_8px_#000] uppercase">
             {words.slice(Math.max(0, capIdx - 1), capIdx + 2).map((w, i) => <span key={i} className={i === Math.min(1, capIdx) ? "text-emerald-400" : ""}>{w} </span>)}
           </div>

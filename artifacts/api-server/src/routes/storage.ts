@@ -1,11 +1,13 @@
 import { Router, type IRouter } from "express";
-import { RequestUploadUrlBody, RequestUploadUrlResponse } from "@workspace/api-zod";
+import { RequestUploadUrlBody, RequestUploadUrlResponse, FinalizeMediaUploadBody, FinalizeMediaUploadResponse } from "@workspace/api-zod";
 import { storage, ownedFile } from "../lib/mediaStorage";
 import { setObjectAclPolicy } from "../lib/objectAcl";
+import { getCapabilities } from "../lib/capabilities";
 
 const router: IRouter = Router();
 router.post("/storage/uploads/request-url", async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Log in to upload media." }); return; }
+  if (!getCapabilities().uploads) { res.status(503).json({ error: "App Storage is not configured. Uploads are unavailable." }); return; }
   const parsed = RequestUploadUrlBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Choose a valid file smaller than 500 MB." }); return; }
   if (!["video/mp4", "video/quicktime", "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/mp4", "image/png", "image/jpeg", "image/webp"].includes(parsed.data.contentType)) {
@@ -18,6 +20,18 @@ router.post("/storage/uploads/request-url", async (req, res): Promise<void> => {
   const { reserveUpload } = await import("../lib/uploads");
   await reserveUpload(objectPath, req.workspaceId, parsed.data.size, parsed.data.contentType);
   res.json(RequestUploadUrlResponse.parse({ uploadURL, objectPath }));
+});
+
+router.post("/storage/uploads/finalize", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Log in to verify uploads." }); return; }
+  const parsed = FinalizeMediaUploadBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid uploaded object." }); return; }
+  try {
+    const { finalizeUpload } = await import("../lib/uploads");
+    await finalizeUpload(parsed.data.objectPath, req.workspaceId);
+    await ownedFile(parsed.data.objectPath, req.workspaceId);
+    res.json(FinalizeMediaUploadResponse.parse(parsed.data));
+  } catch { res.status(400).json({ error: "The uploaded file could not be verified. Check its size/type and retry." }); }
 });
 
 router.get("/storage/objects/{*objectPath}", async (req, res): Promise<void> => {

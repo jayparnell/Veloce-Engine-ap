@@ -502,6 +502,103 @@ export const GetCurrentAuthUserResponse = zod.object({
 })
 
 
+export const finalizeMediaUploadBodyObjectPathRegExp = new RegExp('^/objects/[a-zA-Z0-9/_-]+$');
+
+
+export const FinalizeMediaUploadBody = zod.object({
+  "objectPath": zod.string().regex(finalizeMediaUploadBodyObjectPathRegExp)
+})
+
+export const finalizeMediaUploadResponseObjectPathRegExp = new RegExp('^/objects/[a-zA-Z0-9/_-]+$');
+
+
+export const FinalizeMediaUploadResponse = zod.object({
+  "objectPath": zod.string().regex(finalizeMediaUploadResponseObjectPathRegExp)
+})
+
+
+export const getSocialIntegrationsResponseOneClientIdMax = 500;
+
+
+
+export const GetSocialIntegrationsResponseItem = zod.object({
+  "clientId": zod.string().max(getSocialIntegrationsResponseOneClientIdMax),
+  "appApproved": zod.boolean()
+}).and(zod.object({
+  "provider": zod.enum(['youtube', 'tiktok']),
+  "name": zod.string(),
+  "redirectUri": zod.string(),
+  "scopes": zod.string(),
+  "secretName": zod.string(),
+  "secretConfigured": zod.boolean(),
+  "apiKeyName": zod.string(),
+  "apiKeyConfigured": zod.boolean(),
+  "connected": zod.boolean(),
+  "canConnect": zod.boolean(),
+  "message": zod.string()
+}))
+export const GetSocialIntegrationsResponse = zod.array(GetSocialIntegrationsResponseItem)
+
+
+export const SaveSocialIntegrationParams = zod.object({
+  "provider": zod.enum(['youtube', 'tiktok'])
+})
+
+export const saveSocialIntegrationBodyClientIdMax = 500;
+
+
+
+export const SaveSocialIntegrationBody = zod.object({
+  "clientId": zod.string().max(saveSocialIntegrationBodyClientIdMax),
+  "appApproved": zod.boolean()
+})
+
+export const saveSocialIntegrationResponseOneClientIdMax = 500;
+
+
+
+export const SaveSocialIntegrationResponse = zod.object({
+  "clientId": zod.string().max(saveSocialIntegrationResponseOneClientIdMax),
+  "appApproved": zod.boolean()
+}).and(zod.object({
+  "provider": zod.enum(['youtube', 'tiktok']),
+  "name": zod.string(),
+  "redirectUri": zod.string(),
+  "scopes": zod.string(),
+  "secretName": zod.string(),
+  "secretConfigured": zod.boolean(),
+  "apiKeyName": zod.string(),
+  "apiKeyConfigured": zod.boolean(),
+  "connected": zod.boolean(),
+  "canConnect": zod.boolean(),
+  "message": zod.string()
+}))
+
+
+export const DisconnectSocialIntegrationParams = zod.object({
+  "provider": zod.enum(['youtube', 'tiktok'])
+})
+
+export const DisconnectSocialIntegrationResponse = zod.void()
+
+
+export const BeginSocialAuthorizationParams = zod.object({
+  "provider": zod.enum(['youtube', 'tiktok'])
+})
+
+export const BeginSocialAuthorizationResponse = zod.void()
+
+
+/**
+ * Platform OAuth callback accepts provider-returned state, code and error query fields; state is single-use, owner-bound and expires after ten minutes.
+ */
+export const FinishSocialAuthorizationParams = zod.object({
+  "provider": zod.enum(['youtube', 'tiktok'])
+})
+
+export const FinishSocialAuthorizationResponse = zod.void()
+
+
 export const LoginQueryParams = zod.object({
   "returnTo": zod.coerce.string().optional()
 })

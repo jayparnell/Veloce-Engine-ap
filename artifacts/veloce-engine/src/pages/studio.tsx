@@ -68,7 +68,7 @@ function ProjectRow({ p, onDelete, deleting }: { p: Project; onDelete: () => voi
         <span className="mono text-[11px] text-zinc-500">stage {live.stage}/5</span>
         <span className="mono text-[11px] tabular-nums text-zinc-400">{Math.round(live.progress)}%</span>
       </div>
-      {live.error && <div className="mt-2 text-[12px] text-red-400 mono bg-red-500/5 border border-red-500/15 rounded-md px-2.5 py-1.5">{live.error}</div>}
+      {live.error && <div className="mt-2 text-[12px] text-red-400 mono bg-red-500/5 border border-red-500/15 rounded-md px-2.5 py-1.5">{live.error}{live.error.includes("Upload an authorized MP4") && <p className="mt-2 text-zinc-300">Use the upload control above, select your own MP4, then generate a new batch. Uploading automatically turns off Demo run.</p>}</div>}
       {!running && !failed && <Link href="/vault" className="mt-2 inline-flex items-center gap-1 text-[12px] text-emerald-400 hover:text-emerald-300">Open in Vault <ArrowUpRight className="w-3 h-3" /></Link>}
     </div>
   );
@@ -181,7 +181,7 @@ export default function Studio() {
                   </button>
                 </div>
                 <div className="mt-1.5 text-[11px] mono h-4">
-                  {upErr ? <span className="text-red-400">{upErr}</span> : url && !urlValid ? <span className="text-amber-400">Use a YouTube, Twitch, or Kick URL, or upload an MP4.</span> : isObj ? <span className="text-emerald-400">Uploaded object ready</span> : <span className="text-zinc-600">YouTube · Twitch · Kick · MP4 up to 500 MB</span>}
+                  {upErr ? <span className="text-red-400">{upErr}</span> : url && !urlValid ? <span className="text-amber-400">Use a YouTube, Twitch, or Kick URL, or upload an MP4.</span> : isObj ? <span className="text-emerald-400">Private upload verified · source must be 30s–30m</span> : <span className="text-zinc-600">Remote VOD: first 10m · MP4: 30s–30m, up to 500 MB</span>}
                 </div>
               </div>
 

@@ -40,6 +40,8 @@ export const generatedClipsTable = pgTable("generated_clips", {
   thumbnail: text("thumbnail").notNull().default(""),
   videoUrl: text("video_url").notNull().default(""),
   objectPath: text("object_path"),
+  voiceoverObjectPath: text("voiceover_object_path"),
+  captionsObjectPath: text("captions_object_path"),
   status: text("status").notNull().default("ready"),
   demo: boolean("demo").notNull().default(false),
   hook: text("hook").notNull(),

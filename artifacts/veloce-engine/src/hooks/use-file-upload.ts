@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useRequestUploadUrl } from "@workspace/api-client-react";
+import { useRequestUploadUrl, useFinalizeMediaUpload } from "@workspace/api-client-react";
 
 const MAX = 524288000;
 const ALLOWED = ["video/mp4", "image/png"];
@@ -13,6 +13,7 @@ export function validateFile(file: File): string | null {
 /** Real upload: request presigned URL, PUT bytes, return objectPath. */
 export function useFileUpload() {
   const request = useRequestUploadUrl();
+  const finalize = useFinalizeMediaUpload();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +29,7 @@ export function useFileUpload() {
       const res = await request.mutateAsync({ data: { name: file.name, size: file.size, contentType: file.type || "application/octet-stream" } });
       const put = await fetch(res.uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
       if (!put.ok) throw new Error(`Storage rejected the upload (${put.status})`);
+      await finalize.mutateAsync({ data: { objectPath: res.objectPath } });
       return res.objectPath;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");

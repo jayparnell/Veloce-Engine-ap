@@ -44,8 +44,11 @@ import type {
   ProjectInput,
   Schedule,
   ScheduleInput,
+  SocialIntegration,
+  SocialIntegrationInput,
   StudioSummary,
   TrendingSource,
+  UploadFinalizeInput,
   UploadInput,
   UploadResult
 } from './api.schemas';
@@ -2041,6 +2044,527 @@ export function useGetCurrentAuthUser<TData = Awaited<ReturnType<typeof getCurre
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetCurrentAuthUserQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getFinalizeMediaUploadUrl = () => {
+
+
+
+
+  return `/api/storage/uploads/finalize`
+}
+
+export const finalizeMediaUpload = async (uploadFinalizeInput: UploadFinalizeInput, options?: Parameters<typeof customFetch>[1]): Promise<UploadFinalizeInput> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<UploadFinalizeInput>(getFinalizeMediaUploadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(uploadFinalizeInput)
+  }
+);}
+
+
+
+
+
+export const getFinalizeMediaUploadMutationKey = () => ['finalizeMediaUpload'] as const;
+
+export const getFinalizeMediaUploadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizeMediaUpload>>, TError,FinalizeMediaUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof finalizeMediaUpload>>, TError,FinalizeMediaUploadMutationVariables, TContext> => {
+
+const mutationKey = getFinalizeMediaUploadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof finalizeMediaUpload>>, FinalizeMediaUploadMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  finalizeMediaUpload(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FinalizeMediaUploadMutationResult = NonNullable<Awaited<ReturnType<typeof finalizeMediaUpload>>>
+    export type FinalizeMediaUploadMutationBody = BodyType<UploadFinalizeInput>
+    export type FinalizeMediaUploadMutationError = ErrorType<unknown>
+    export type FinalizeMediaUploadMutationVariables = {data: BodyType<UploadFinalizeInput>}
+
+    export const useFinalizeMediaUpload = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizeMediaUpload>>, TError,FinalizeMediaUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof finalizeMediaUpload>>,
+        TError,
+        FinalizeMediaUploadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getFinalizeMediaUploadMutationOptions(options), queryClient);
+    }
+
+export const getGetSocialIntegrationsUrl = () => {
+
+
+
+
+  return `/api/settings/integrations`
+}
+
+export const getSocialIntegrations = async ( options?: Parameters<typeof customFetch>[1]): Promise<SocialIntegration[]> => {
+
+  return customFetch<SocialIntegration[]>(getGetSocialIntegrationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSocialIntegrationsQueryKey = () => {
+    return [
+    `/api/settings/integrations`
+    ] as const;
+    }
+
+
+export const getGetSocialIntegrationsQueryOptions = <TData = Awaited<ReturnType<typeof getSocialIntegrations>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSocialIntegrations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSocialIntegrationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSocialIntegrations>>> = ({ signal }) => getSocialIntegrations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSocialIntegrations>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSocialIntegrationsQueryResult = NonNullable<Awaited<ReturnType<typeof getSocialIntegrations>>>
+export type GetSocialIntegrationsQueryError = ErrorType<unknown>
+
+
+export function useGetSocialIntegrations<TData = Awaited<ReturnType<typeof getSocialIntegrations>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSocialIntegrations>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSocialIntegrations>>,
+          TError,
+          Awaited<ReturnType<typeof getSocialIntegrations>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSocialIntegrations<TData = Awaited<ReturnType<typeof getSocialIntegrations>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSocialIntegrations>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSocialIntegrations>>,
+          TError,
+          Awaited<ReturnType<typeof getSocialIntegrations>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSocialIntegrations<TData = Awaited<ReturnType<typeof getSocialIntegrations>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSocialIntegrations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetSocialIntegrations<TData = Awaited<ReturnType<typeof getSocialIntegrations>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSocialIntegrations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSocialIntegrationsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveSocialIntegrationUrl = (provider: 'youtube' | 'tiktok',) => {
+
+
+
+
+  return `/api/settings/integrations/${provider}`
+}
+
+export const saveSocialIntegration = async (provider: 'youtube' | 'tiktok',
+    socialIntegrationInput: SocialIntegrationInput, options?: Parameters<typeof customFetch>[1]): Promise<SocialIntegration> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialIntegration>(getSaveSocialIntegrationUrl(provider),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialIntegrationInput)
+  }
+);}
+
+
+
+
+
+export const getSaveSocialIntegrationMutationKey = () => ['saveSocialIntegration'] as const;
+
+export const getSaveSocialIntegrationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveSocialIntegration>>, TError,SaveSocialIntegrationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveSocialIntegration>>, TError,SaveSocialIntegrationMutationVariables, TContext> => {
+
+const mutationKey = getSaveSocialIntegrationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveSocialIntegration>>, SaveSocialIntegrationMutationVariables> = (props) => {
+          const {provider,data} = props ?? {};
+
+          return  saveSocialIntegration(provider,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveSocialIntegrationMutationResult = NonNullable<Awaited<ReturnType<typeof saveSocialIntegration>>>
+    export type SaveSocialIntegrationMutationBody = BodyType<SocialIntegrationInput>
+    export type SaveSocialIntegrationMutationError = ErrorType<unknown>
+    export type SaveSocialIntegrationMutationVariables = {provider: 'youtube' | 'tiktok';data: BodyType<SocialIntegrationInput>}
+
+    export const useSaveSocialIntegration = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveSocialIntegration>>, TError,SaveSocialIntegrationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveSocialIntegration>>,
+        TError,
+        SaveSocialIntegrationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveSocialIntegrationMutationOptions(options), queryClient);
+    }
+
+export const getDisconnectSocialIntegrationUrl = (provider: 'youtube' | 'tiktok',) => {
+
+
+
+
+  return `/api/settings/integrations/${provider}`
+}
+
+export const disconnectSocialIntegration = async (provider: 'youtube' | 'tiktok', options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDisconnectSocialIntegrationUrl(provider),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisconnectSocialIntegrationMutationKey = () => ['disconnectSocialIntegration'] as const;
+
+export const getDisconnectSocialIntegrationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectSocialIntegration>>, TError,DisconnectSocialIntegrationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectSocialIntegration>>, TError,DisconnectSocialIntegrationMutationVariables, TContext> => {
+
+const mutationKey = getDisconnectSocialIntegrationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectSocialIntegration>>, DisconnectSocialIntegrationMutationVariables> = (props) => {
+          const {provider} = props ?? {};
+
+          return  disconnectSocialIntegration(provider,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectSocialIntegrationMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectSocialIntegration>>>
+
+    export type DisconnectSocialIntegrationMutationError = ErrorType<unknown>
+    export type DisconnectSocialIntegrationMutationVariables = {provider: 'youtube' | 'tiktok'}
+
+    export const useDisconnectSocialIntegration = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectSocialIntegration>>, TError,DisconnectSocialIntegrationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectSocialIntegration>>,
+        TError,
+        DisconnectSocialIntegrationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDisconnectSocialIntegrationMutationOptions(options), queryClient);
+    }
+
+export const getBeginSocialAuthorizationUrl = (provider: 'youtube' | 'tiktok',) => {
+
+
+
+
+  return `/api/social/oauth/${provider}/start`
+}
+
+export const beginSocialAuthorization = async (provider: 'youtube' | 'tiktok', options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+
+  return customFetch<unknown>(getBeginSocialAuthorizationUrl(provider),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getBeginSocialAuthorizationQueryKey = (provider: 'youtube' | 'tiktok',) => {
+    return [
+    `/api/social/oauth/${provider}/start`
+    ] as const;
+    }
+
+
+export const getBeginSocialAuthorizationQueryOptions = <TData = Awaited<ReturnType<typeof beginSocialAuthorization>>, TError = ErrorType<void>>(provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getBeginSocialAuthorizationQueryKey(provider);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof beginSocialAuthorization>>> = ({ signal }) => beginSocialAuthorization(provider, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: provider !== null && provider !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type BeginSocialAuthorizationQueryResult = NonNullable<Awaited<ReturnType<typeof beginSocialAuthorization>>>
+export type BeginSocialAuthorizationQueryError = ErrorType<void>
+
+
+export function useBeginSocialAuthorization<TData = Awaited<ReturnType<typeof beginSocialAuthorization>>, TError = ErrorType<void>>(
+ provider: 'youtube' | 'tiktok', options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof beginSocialAuthorization>>,
+          TError,
+          Awaited<ReturnType<typeof beginSocialAuthorization>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useBeginSocialAuthorization<TData = Awaited<ReturnType<typeof beginSocialAuthorization>>, TError = ErrorType<void>>(
+ provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof beginSocialAuthorization>>,
+          TError,
+          Awaited<ReturnType<typeof beginSocialAuthorization>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useBeginSocialAuthorization<TData = Awaited<ReturnType<typeof beginSocialAuthorization>>, TError = ErrorType<void>>(
+ provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useBeginSocialAuthorization<TData = Awaited<ReturnType<typeof beginSocialAuthorization>>, TError = ErrorType<void>>(
+ provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getBeginSocialAuthorizationQueryOptions(provider,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getFinishSocialAuthorizationUrl = (provider: 'youtube' | 'tiktok',) => {
+
+
+
+
+  return `/api/social/oauth/${provider}/callback`
+}
+
+/**
+ * Platform OAuth callback accepts provider-returned state, code and error query fields; state is single-use, owner-bound and expires after ten minutes.
+ */
+export const finishSocialAuthorization = async (provider: 'youtube' | 'tiktok', options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+
+  return customFetch<unknown>(getFinishSocialAuthorizationUrl(provider),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getFinishSocialAuthorizationQueryKey = (provider: 'youtube' | 'tiktok',) => {
+    return [
+    `/api/social/oauth/${provider}/callback`
+    ] as const;
+    }
+
+
+export const getFinishSocialAuthorizationQueryOptions = <TData = Awaited<ReturnType<typeof finishSocialAuthorization>>, TError = ErrorType<void>>(provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getFinishSocialAuthorizationQueryKey(provider);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof finishSocialAuthorization>>> = ({ signal }) => finishSocialAuthorization(provider, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: provider !== null && provider !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type FinishSocialAuthorizationQueryResult = NonNullable<Awaited<ReturnType<typeof finishSocialAuthorization>>>
+export type FinishSocialAuthorizationQueryError = ErrorType<void>
+
+
+export function useFinishSocialAuthorization<TData = Awaited<ReturnType<typeof finishSocialAuthorization>>, TError = ErrorType<void>>(
+ provider: 'youtube' | 'tiktok', options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof finishSocialAuthorization>>,
+          TError,
+          Awaited<ReturnType<typeof finishSocialAuthorization>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useFinishSocialAuthorization<TData = Awaited<ReturnType<typeof finishSocialAuthorization>>, TError = ErrorType<void>>(
+ provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof finishSocialAuthorization>>,
+          TError,
+          Awaited<ReturnType<typeof finishSocialAuthorization>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useFinishSocialAuthorization<TData = Awaited<ReturnType<typeof finishSocialAuthorization>>, TError = ErrorType<void>>(
+ provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useFinishSocialAuthorization<TData = Awaited<ReturnType<typeof finishSocialAuthorization>>, TError = ErrorType<void>>(
+ provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getFinishSocialAuthorizationQueryOptions(provider,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

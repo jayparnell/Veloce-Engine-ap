@@ -1,0 +1,3 @@
+- [AI billing choice](ai-billing-choice.md) — use Replit-hosted audio and AI on credits, not an external OpenAI API key.
+- [Capability readiness](capability-readiness.md) — avoid synchronous tool launches in request-time capability checks.
+- [Storage SDK compatibility](storage-sdk-compatibility.md) — preserve sidecar auth and verify private reads/writes before upgrading storage dependencies.

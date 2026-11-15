@@ -283,6 +283,39 @@ export interface MobileAuthInput {
   nonce: string;
 }
 
+export interface UploadFinalizeInput {
+  /** @pattern ^/objects/[a-zA-Z0-9/_-]+$ */
+  objectPath: string;
+}
+
+export interface SocialIntegrationInput {
+  /** @maxLength 500 */
+  clientId: string;
+  appApproved: boolean;
+}
+
+export type SocialIntegrationProvider = typeof SocialIntegrationProvider[keyof typeof SocialIntegrationProvider];
+
+
+export const SocialIntegrationProvider = {
+  youtube: 'youtube',
+  tiktok: 'tiktok',
+} as const;
+
+export type SocialIntegration = SocialIntegrationInput & {
+  provider: SocialIntegrationProvider;
+  name: string;
+  redirectUri: string;
+  scopes: string;
+  secretName: string;
+  secretConfigured: boolean;
+  apiKeyName: string;
+  apiKeyConfigured: boolean;
+  connected: boolean;
+  canConnect: boolean;
+  message: string;
+};
+
 export type LoginParams = {
 returnTo?: string;
 };
