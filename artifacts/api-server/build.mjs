@@ -11,11 +11,17 @@ globalThis.require = createRequire(import.meta.url);
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 
 async function buildAll() {
-  const distDir = path.resolve(artifactDir, "dist");
-  await rm(distDir, { recursive: true, force: true });
+  const target = process.argv[2];
+  if (target && !["api", "worker"].includes(target)) throw new Error("Unknown build target");
+  // Development services must not remove one another's bundles or logger transports.
+  const distDir = path.resolve(artifactDir, target ? `dist/${target}` : "dist");
+  // A full post-merge build may run while development services still drain.
+  // Leave their subdirectories intact until managed workflow reconciliation.
+  if (target) await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
-    entryPoints: [path.resolve(artifactDir, "src/index.ts"), path.resolve(artifactDir, "src/worker-main.ts")],
+    entryPoints: (target === "api" ? ["index"] : target === "worker" ? ["worker-main"] : ["index", "worker-main"])
+      .map((name) => path.resolve(artifactDir, `src/${name}.ts`)),
     platform: "node",
     bundle: true,
     format: "esm",

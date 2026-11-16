@@ -1,25 +1,26 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { pool } from "@workspace/db";
+import { createServer } from "node:http";
+import { serviceLifecycle, servicePort } from "./lib/service-lifecycle";
 
-const rawPort = process.env["PORT"];
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
-
-const port = Number(rawPort);
-
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
-}
-
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
-
-  logger.info({ port }, "Server listening");
+const port = servicePort();
+const server = createServer(app);
+const lifecycle = serviceLifecycle(server, {
+  port,
+  start: () => { logger.info({ port }, "Server listening"); },
+  closeResources: () => pool.end(),
 });
+async function stop() {
+  logger.info("API draining");
+  await lifecycle.stop();
+}
+function fail(error: unknown) {
+  process.exitCode = 1;
+  logger.error({ err: error, port }, "API service failed");
+  void stop().catch((err) => { logger.error({ err }, "API shutdown failed"); });
+}
+server.on("error", fail);
+void lifecycle.ready.catch(fail);
+process.once("SIGTERM", () => { void stop().catch(fail); });
+process.once("SIGINT", () => { void stop().catch(fail); });

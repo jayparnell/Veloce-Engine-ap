@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
+    "dev": "export NODE_ENV=development && node ./build.mjs api && exec node --enable-source-maps ./dist/api/index.mjs",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
-    "worker": "pnpm run build && node --enable-source-maps ./dist/worker-main.mjs",
+    "worker": "node ./build.mjs worker && exec node --enable-source-maps ./dist/worker/worker-main.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

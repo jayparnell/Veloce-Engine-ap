@@ -5,6 +5,7 @@ import { logger } from "../lib/logger";
 import { runAutopilot } from "./autopilot-process";
 import { JobContext, jobContext, JobStoppedError, UncertainCallError, AIRequestRejectedError } from "./job-context";
 import { SourceIngestionError } from "./ingestion";
+import { startPollLoop } from "../lib/poll-loop";
 
 export const GLOBAL_SOURCE_LIMIT = 5;
 const running = new Set<Promise<void>>();
@@ -72,26 +73,29 @@ export async function adoptLegacyJobs() {
     AND NOT EXISTS (SELECT 1 FROM autopilot_jobs j WHERE j.project_id=p.id) ON CONFLICT DO NOTHING`);
 }
 export function startPipelineWorker() {
-  let ticking = false;
+  stopping = false;
   const tick = async () => {
-    if (ticking || stopping) return;
-    ticking = true;
-    try {
-      await serviceHeartbeat("media");
-      await adoptLegacyJobs();
-      // Finish cancellations left queued or interrupted by a process crash.
-      await db.execute(sql`UPDATE autopilot_jobs SET status='cancelled',lease_token=NULL,lease_until=NULL
-        WHERE cancel_requested=true AND (status='queued' OR (status='processing' AND (lease_until < now() OR lease_until IS NULL)))`);
-      for (let slot = 0; slot < GLOBAL_SOURCE_LIMIT; slot++) {
-        if (running.size >= GLOBAL_SOURCE_LIMIT) break;
-        if (localSlots.has(slot)) continue;
-        localSlots.add(slot);
-        const promise = runSlot(slot).finally(() => { running.delete(promise); localSlots.delete(slot); });
-        running.add(promise);
-      }
-    } finally { ticking = false; }
+    if (stopping) return;
+    await serviceHeartbeat("media");
+    if (stopping) return;
+    await adoptLegacyJobs();
+    if (stopping) return;
+    // Finish cancellations left queued or interrupted by a process crash.
+    await db.execute(sql`UPDATE autopilot_jobs SET status='cancelled',lease_token=NULL,lease_until=NULL
+      WHERE cancel_requested=true AND (status='queued' OR (status='processing' AND (lease_until < now() OR lease_until IS NULL)))`);
+    for (let slot = 0; slot < GLOBAL_SOURCE_LIMIT; slot++) {
+      if (stopping) break;
+      if (running.size >= GLOBAL_SOURCE_LIMIT) break;
+      if (localSlots.has(slot)) continue;
+      localSlots.add(slot);
+      const promise = runSlot(slot).finally(() => { running.delete(promise); localSlots.delete(slot); });
+      running.add(promise);
+    }
   };
-  const interval = setInterval(() => { void tick().catch(() => logger.error("Media worker polling failed")); }, 2000);
-  void tick();
-  return async () => { stopping = true; clearInterval(interval); await Promise.allSettled(running); };
+  const stopPolling = startPollLoop(tick, 2000, () => logger.error("Media worker polling failed"));
+  return async () => {
+    stopping = true;
+    await stopPolling();
+    await Promise.allSettled(running);
+  };
 }

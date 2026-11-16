@@ -28,6 +28,10 @@ args = "autopilot-unit"
 task = "workflow.run"
 args = "media-unit"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "service-lifecycle"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -57,6 +61,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = ".pythonlibs/bin/python3 -m unittest discover -s artifacts/api-server/src/pipeline -p test_media_worker.py -v"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "service-lifecycle"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/tests/lifecycle.test.ts"
 
 [workflows.workflow.metadata]
 isValidation = true

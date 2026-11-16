@@ -8,6 +8,7 @@ import { accountToken } from "./tokens";
 import { PROVIDERS, providerOf, ProviderError } from "./providers";
 import { publishAdapter, ReconciliationRequired, ReviewRequired, type AdapterContext } from "./adapters";
 import { assignReadyClips } from "./allocator";
+import { startPollLoop } from "../lib/poll-loop";
 
 export async function runPublishWork(work: PublishWork, transport: typeof fetch = fetch) {
   const [account] = await db.select().from(accounts).where(eq(accounts.id, work.accountId));
@@ -68,19 +69,21 @@ export async function runPublishWork(work: PublishWork, transport: typeof fetch 
   if (result.status === "published" && !result.remoteId) throw new ReconciliationRequired("Provider did not confirm a remote post ID.");
   await db.update(queue).set({ status: result.status, remoteId: result.remoteId ?? null, error: result.error ?? null, updatedAt: new Date(), retryAt: result.status === "processing" ? new Date(Date.now() + 60000) : null }).where(eq(queue.id, work.id));
 }
-export async function publisherTick() {
+export async function publisherTick(shouldStop = () => false) {
   const connection = await pool.connect();
   let acquired = false;
   try {
     acquired = Boolean((await connection.query("SELECT pg_try_advisory_lock(74004,0) AS acquired")).rows[0]?.acquired);
-    if (!acquired) return;
+    if (!acquired || shouldStop()) return;
     await assignReadyClips();
     const result = await connection.query(`SELECT q.* FROM autopilot_publish_queue q JOIN social_accounts a ON a.id=q.account_id
       WHERE a.connected=true AND a.approved=true AND a.auto_enabled=true AND q.scheduled_at<=now()
       AND (q.retry_at IS NULL OR q.retry_at<=now()) AND q.status IN ('scheduled','processing','publishing','retry')
       ORDER BY q.scheduled_at LIMIT 12`);
     for (const raw of result.rows) {
+      if (shouldStop()) break;
       const [work] = await db.select().from(queue).where(eq(queue.id, Number(raw.id)));
+      if (shouldStop()) break;
       if (!work) continue;
       await db.update(queue).set({ status: "publishing", attempts: work.attempts + 1, updatedAt: new Date() }).where(eq(queue.id, work.id));
       try { await runPublishWork(work); }
@@ -98,16 +101,11 @@ export async function publisherTick() {
   }
 }
 export function startPublisher() {
-  let busy = false;
-  const tick = async () => {
-    if (busy) return;
-    busy = true;
-    try { await publisherTick(); }
-    catch { logger.error("Publisher poll failed"); }
-    finally { busy = false; }
+  let stopping = false;
+  const stopHeartbeat = startPollLoop(() => serviceHeartbeat("publisher"), 30000, () => logger.error("Publisher heartbeat failed"));
+  const stopPolling = startPollLoop(() => publisherTick(() => stopping), 60000, () => logger.error("Publisher poll failed"));
+  return async () => {
+    stopping = true;
+    await Promise.all([stopPolling(), stopHeartbeat()]);
   };
-  const heartbeat = setInterval(() => { void serviceHeartbeat("publisher").catch(() => {}); }, 30000);
-  const timer = setInterval(() => { void tick(); }, 60000);
-  void serviceHeartbeat("publisher"); void tick();
-  return () => { clearInterval(timer); clearInterval(heartbeat); };
 }
