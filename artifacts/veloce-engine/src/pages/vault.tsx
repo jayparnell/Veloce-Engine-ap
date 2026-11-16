@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useListClips, getListClipsQueryKey, useUpdateClip, useDeleteClip, useCreateExport, useListCampaigns, getListCampaignsQueryKey,
-  getGetStudioSummaryQueryKey, type Clip, type ExportResult,
+  useListClips, getListClipsQueryKey, useUpdateClip, useDeleteClip, useListCampaigns, getListCampaignsQueryKey,
+  getGetStudioSummaryQueryKey, type Clip,
 } from "@workspace/api-client-react";
-import { Search, Film, Download, Trash2, Save, Play, Pause, Captions, PictureInPicture2, Type, Grid3x3, Info, X } from "lucide-react";
+import { Search, Film, Trash2, Save, Play, Pause, Captions, PictureInPicture2, Type, Grid3x3, Info, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { usePack, useDub, PackButton, DubButton } from "@/components/autopilot";
 import { PageHeader, Pill, DemoTag, Sk, ErrorState, EmptyState, ScoreBar, statusTone, errMsg, fmtDur, btn, field } from "@/components/kit";
 
 type Draft = { title: string; hook: string; script: string; hashtags: string; pinnedComment: string; captions: boolean; pictureInPicture: boolean; campaignId: number | null };
@@ -83,7 +84,6 @@ export default function Vault() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [showHook, setShowHook] = useState(true);
   const [safe, setSafe] = useState(false);
-  const [exportRes, setExportRes] = useState<ExportResult | null>(null);
   const [confirmDel, setConfirmDel] = useState<Clip | null>(null);
   const initFor = useRef<number | null>(null);
 
@@ -96,7 +96,8 @@ export default function Vault() {
   const invalidate = () => { qc.invalidateQueries({ queryKey: getListClipsQueryKey() }); qc.invalidateQueries({ queryKey: getGetStudioSummaryQueryKey() }); };
   const update = useUpdateClip({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Clip saved", description: "Metadata and layout preferences stored. Existing renders are not regenerated." }); }, onError: (e) => toast({ title: "Save failed", description: errMsg(e), variant: "destructive" }) } });
   const del = useDeleteClip({ mutation: { onSuccess: (_, v) => { invalidate(); setSel((s) => { const n = new Set(s); n.delete(v.id); return n; }); if (v.id === activeId) { setActiveId(null); initFor.current = null; } setConfirmDel(null); toast({ title: "Clip deleted" }); }, onError: (e) => toast({ title: "Delete failed", description: errMsg(e), variant: "destructive" }) } });
-  const exp = useCreateExport({ mutation: { onSuccess: (r) => setExportRes(r), onError: (e) => toast({ title: "Export failed", description: errMsg(e), variant: "destructive" }) } });
+  const pack = usePack();
+  const dub = useDub();
 
   const dirty = !!(active && draft && JSON.stringify(toDraft(active)) !== JSON.stringify(draft));
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => (d ? { ...d, [k]: v } : d));
@@ -108,7 +109,8 @@ export default function Vault() {
         actions={sel.size > 0 ? (<>
           <span className="mono text-[11.5px] text-zinc-400">{sel.size} selected</span>
           <button className={btn.ghost} onClick={() => setSel(new Set())}><X className="w-3.5 h-3.5" /> Clear</button>
-          <button className={btn.primary} disabled={exp.isPending || sel.size > 20} onClick={() => exp.mutate({ data: { clipIds: [...sel] } })} data-testid="button-bulk-export"><Download className="w-3.5 h-3.5" /> {exp.isPending ? "Packaging..." : "Export ZIP"}</button>
+          <DubButton pending={dub.pending} disabled={sel.size > 20} onClick={() => dub.start([...sel])} testId="button-bulk-dub" />
+          <PackButton pending={pack.pending} disabled={sel.size > 20} onClick={() => pack.start([...sel])} testId="button-bulk-export" />
         </>) : undefined} />
 
       {clips.isLoading ? <div className="grid lg:grid-cols-[320px_1fr] gap-5"><Sk className="h-[520px]" /><Sk className="h-[520px]" /></div>
@@ -133,7 +135,7 @@ export default function Vault() {
                   <div className="min-w-0 flex-1">
                     <div className="text-[12.5px] truncate">{c.title}</div>
                     <div className="text-[10.5px] text-muted-foreground truncate">{c.creator}</div>
-                    <div className="flex items-center gap-1 mt-1">{c.demo && <DemoTag />}<Pill tone={statusTone(c.status)}>{c.status}</Pill></div>
+                    <div className="flex items-center gap-1 mt-1">{c.demo && <DemoTag />}{c.language && c.language !== "en" && <Pill tone="sky">{c.language.toUpperCase()}</Pill>}<Pill tone={statusTone(c.status)}>{c.status}</Pill></div>
                   </div>
                   <div className={cn("mono text-[13px] tabular-nums", c.score >= 70 ? "text-emerald-400" : c.score >= 45 ? "text-amber-400" : "text-zinc-500")}>{c.score.toFixed(0)}</div>
                 </div>
@@ -145,12 +147,13 @@ export default function Vault() {
             <div className="panel rise" key={active.id}>
               <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2"><span className="text-[13.5px] font-medium truncate">{active.title}</span>{active.demo && <DemoTag />}</div>
+                  <div className="flex items-center gap-2"><span className="text-[13.5px] font-medium truncate">{active.title}</span>{active.demo && <DemoTag />}{active.language && active.language !== "en" && <Pill tone="sky">{active.language.toUpperCase()} dub</Pill>}</div>
                   <div className="mono text-[10.5px] text-zinc-500">#{active.id} · {active.mode} · {fmtDur(active.duration)} · {active.platforms.join(", ") || "no platforms"}</div>
                 </div>
-                <button className={btn.ghost} disabled={exp.isPending} onClick={() => exp.mutate({ data: { clipIds: [active.id] } })} data-testid="button-export-clip"><Download className="w-3.5 h-3.5" /> Export</button>
+                {!active.originalClipId && <DubButton pending={dub.pending} onClick={() => dub.start([active.id])} testId="button-dub-clip" />}
+                <PackButton pending={pack.pending} onClick={() => pack.start([active.id])} testId="button-export-clip" />
                 <button className={btn.danger} onClick={() => setConfirmDel(active)} data-testid="button-delete-clip"><Trash2 className="w-3.5 h-3.5" /></button>
-                <button className={btn.primary} disabled={!dirty || update.isPending || !draft.title.trim()} onClick={() => update.mutate({ id: active.id, data: draft })} data-testid="button-save-clip"><Save className="w-3.5 h-3.5" /> {update.isPending ? "Saving..." : "Save"}</button>
+                <button className={btn.ghost} disabled={!dirty || update.isPending || !draft.title.trim()} onClick={() => update.mutate({ id: active.id, data: draft })} data-testid="button-save-clip"><Save className="w-3.5 h-3.5" /> {update.isPending ? "Saving..." : "Save"}</button>
               </div>
               <div className="grid xl:grid-cols-[300px_1fr] gap-6 p-4 md:p-5">
                 <div>
@@ -192,17 +195,7 @@ export default function Vault() {
         </div>
       )}
 
-      <Dialog open={!!exportRes} onOpenChange={(o) => !o && setExportRes(null)}>
-        <DialogContent className="bg-[#121215] border-white/[0.08]">
-          <DialogTitle className="text-[15px]">Export package ready</DialogTitle>
-          <DialogDescription className="text-[12.5px]">{exportRes?.message}</DialogDescription>
-          <div className="flex items-center gap-2 p-3 rounded-md bg-[#09090B] border border-white/[0.06]">
-            <Download className="w-4 h-4 text-emerald-400" /><span className="mono text-[12px] truncate flex-1">{exportRes?.filename}</span>
-            <Pill tone={exportRes?.includesVideo ? "emerald" : "amber"}>{exportRes?.includesVideo ? "Video included" : "Metadata only"}</Pill>
-          </div>
-          <div className="flex justify-end gap-2"><button className={btn.ghost} onClick={() => setExportRes(null)}>Close</button><a href={exportRes?.downloadUrl} download={exportRes?.filename} className={btn.primary} data-testid="link-download-export">Download</a></div>
-        </DialogContent>
-      </Dialog>
+      {pack.dialog}
 
       <Dialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)}>
         <DialogContent className="bg-[#121215] border-white/[0.08]">

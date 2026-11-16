@@ -27,6 +27,7 @@ export async function buildExport(clips: Clip[], owner: string) {
     const folder = `clip-${clip.id}`;
     archive.append(JSON.stringify({
       title: clip.title, hook: clip.hook, script: clip.script, hashtags: clip.hashtags,
+      language: clip.language, originalClipId: clip.originalClipId,
       pinnedComment: clip.pinnedComment, demo: clip.demo,
       heuristicScore: clip.score, reviewRequired: true,
       captionTiming: "Individual word timing estimated from the narration speech envelope; review before publishing.",

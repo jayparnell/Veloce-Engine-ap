@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@workspace/replit-auth-web";
-import { useGetSocialIntegrations, getGetSocialIntegrationsQueryKey, useSaveSocialIntegration, useDisconnectSocialIntegration, getListPlatformAccountsQueryKey, type SocialIntegration } from "@workspace/api-client-react";
+import { useGetSocialIntegrations, getGetSocialIntegrationsQueryKey, useSaveSocialIntegration, useDisconnectSocialIntegration, getListPlatformAccountsQueryKey, getGetAutopilotAccountsQueryKey, type SocialIntegration } from "@workspace/api-client-react";
 import { ExternalLink, LockKeyhole, Save, Unplug } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Pill, Sk, ErrorState, btn, field, errMsg } from "./kit";
+
+const PH: Record<string, string> = { youtube: "your-app.apps.googleusercontent.com", tiktok: "Your TikTok application client key", instagram: "Your Meta (Instagram) app ID", x: "Your X developer app client ID" };
 
 function IntegrationCard({ integration }: { integration: SocialIntegration }) {
   const { isAuthenticated } = useAuth();
@@ -16,6 +18,7 @@ function IntegrationCard({ integration }: { integration: SocialIntegration }) {
   const refresh = () => {
     qc.invalidateQueries({ queryKey: getGetSocialIntegrationsQueryKey() });
     qc.invalidateQueries({ queryKey: getListPlatformAccountsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetAutopilotAccountsQueryKey() });
   };
   const save = useSaveSocialIntegration({ mutation: {
     onSuccess: () => { refresh(); toast({ title: "Integration settings saved", description: "Public configuration saved. Client secrets stay server-side." }); },
@@ -34,9 +37,9 @@ function IntegrationCard({ integration }: { integration: SocialIntegration }) {
         <Pill tone={integration.connected ? "emerald" : integration.canConnect ? "amber" : "neutral"}>{integration.connected ? "Authorized" : integration.canConnect ? "Ready to connect" : "Setup required"}</Pill>
       </div>
       <label className="block text-xs text-zinc-400 mb-3">
-        {integration.provider === "youtube" ? "Public OAuth client ID" : "Public client key"}
+        {integration.provider === "youtube" ? "Public OAuth client ID" : integration.provider === "tiktok" ? "Public client key" : integration.provider === "instagram" ? "Meta app ID" : "OAuth 2.0 client ID"}
         <input value={clientId} onChange={(e) => setClientId(e.target.value)} disabled={!isAuthenticated || save.isPending}
-          autoComplete="off" maxLength={500} className={`${field} mt-1.5 w-full mono text-xs`} placeholder={integration.provider === "youtube" ? "your-app.apps.googleusercontent.com" : "Your TikTok application client key"}
+          autoComplete="off" maxLength={500} className={`${field} mt-1.5 w-full mono text-xs`} placeholder={PH[integration.provider]}
           data-testid={`input-${integration.provider}-client-id`} />
       </label>
       <label className="block text-xs text-zinc-400 mb-3">OAuth callback URL for this domain
@@ -53,9 +56,10 @@ function IntegrationCard({ integration }: { integration: SocialIntegration }) {
       <p className="text-xs text-zinc-400 mb-3" role="status">{integration.message}</p>
       <div className="flex flex-wrap gap-2">
         <button type="submit" disabled={!isAuthenticated || save.isPending || !dirty} className={btn.primary} data-testid={`button-save-${integration.provider}`}><Save className="h-3.5 w-3.5" />{save.isPending ? "Saving…" : "Save configuration"}</button>
-        {integration.canConnect && !dirty && !integration.connected && <a className={btn.ghost} href={`/api/social/oauth/${integration.provider}/start`} data-testid={`button-connect-${integration.provider}`}><ExternalLink className="h-3.5 w-3.5" />Authorize account</a>}
-        {integration.connected && <button type="button" className={btn.ghost} disabled={disconnect.isPending} onClick={() => { if (window.confirm("Remove the saved connection tokens? This will not delete any videos.")) disconnect.mutate({ provider: integration.provider }); }}><Unplug className="h-3.5 w-3.5" />Disconnect</button>}
+        {integration.canConnect && !dirty && isAuthenticated && <a className={btn.ghost} href={`/api/social/oauth/${integration.provider}/start`} data-testid={`button-connect-${integration.provider}`}><ExternalLink className="h-3.5 w-3.5" />{integration.connected ? "Authorize additional account" : "Authorize account"}</a>}
+        {integration.connected && <button type="button" className={btn.ghost} disabled={disconnect.isPending} onClick={() => { if (window.confirm(`Remove saved tokens for ALL ${integration.name} accounts? To remove a single account, use Schedule & Accounts. No videos are deleted.`)) disconnect.mutate({ provider: integration.provider }); }}><Unplug className="h-3.5 w-3.5" />Disconnect all</button>}
       </div>
+      {integration.connected && <p className="text-[11px] text-zinc-500 mt-2">Disconnect individual accounts and set auto-publish in <a href={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/distribution`} className="text-emerald-400">Schedule & Accounts</a>.</p>}
     </form>
   );
 }
@@ -65,7 +69,7 @@ export function IntegrationSettings() {
   const [notice] = useState(() => new URLSearchParams(window.location.search).get("oauth"));
   return <section className="panel p-5 mt-4">
     <div className="label-xs mb-4">Social API configuration</div>
-    {notice === "connected" && <p className="text-sm text-emerald-400 mb-4">Account authorized. No videos were published.</p>}
+    {notice === "connected" && <p className="text-sm text-emerald-400 mb-4">Account authorized. No videos were published. Auto-publish stays off until you enable it per account.</p>}
     {notice === "failed" && <p className="text-sm text-amber-400 mb-4">Authorization was cancelled or failed. Check your client ID, callback URL, approval and granted scopes, then retry.</p>}
     <p className="text-xs text-zinc-500 leading-relaxed mb-5">AI narration uses <span className="mono text-zinc-300">gpt-audio · onyx · MP3</span> through Replit AI Integrations. No external OpenAI key is required. Social OAuth setup is separate; saving settings or authorizing an account never publishes videos.</p>
     {integrations.isLoading ? <Sk className="h-40" /> : integrations.isError ? <ErrorState error={integrations.error} onRetry={() => integrations.refetch()} /> : integrations.data?.map((integration) => <IntegrationCard key={integration.provider} integration={integration} />)}

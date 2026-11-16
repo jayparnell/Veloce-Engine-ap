@@ -9,10 +9,10 @@ import { cn } from "@/lib/utils";
 import { Pill, Sk, ErrorState, btn } from "@/components/kit";
 
 const NAV = [
-  { href: "/", label: "Studio", icon: Clapperboard, k: "01" },
+  { href: "/", label: "Command Center", icon: Clapperboard, k: "01" },
   { href: "/vault", label: "Clip Vault", icon: Film, k: "02" },
   { href: "/monetization", label: "Monetization", icon: Coins, k: "03" },
-  { href: "/distribution", label: "Distribution", icon: Send, k: "04" },
+  { href: "/distribution", label: "Schedule & Accounts", icon: Send, k: "04" },
   { href: "/playbook", label: "Playbook", icon: BookOpen, k: "05" },
   { href: "/settings", label: "Settings", icon: Settings2, k: "06" },
 ];
@@ -111,7 +111,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       ) : (
         <div>
-          <div className="text-[11.5px] text-muted-foreground mb-2 leading-snug">Viewing the public demo workspace. Log in to run real media jobs and uploads.</div>
+          <div className="text-[11.5px] text-muted-foreground mb-2 leading-snug">Log in to open your private studio, process sources and manage your accounts.</div>
           <button onClick={login} className={cn(btn.primary, "w-full")} data-testid="button-login"><LogIn className="w-3.5 h-3.5" /> Log in</button>
         </div>
       )}
@@ -157,7 +157,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <button className={btn.icon} onClick={() => setMobile(!mobile)} data-testid="button-menu">{mobile ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}</button>
             <span className="text-[14px] font-semibold">Veloce</span>
             <div className="ml-auto flex items-center gap-2">
-              {!isAuthenticated && !isLoading && <Pill tone="amber">Demo</Pill>}
+              {!isAuthenticated && !isLoading && <Pill tone="neutral">Signed out</Pill>}
               <button className={btn.icon} onClick={() => setGuide(true)} aria-label="Guide"><LifeBuoy className="w-4 h-4" /></button>
             </div>
           </header>

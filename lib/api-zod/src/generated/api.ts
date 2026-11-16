@@ -8,6 +8,240 @@
 import * as zod from 'zod';
 
 
+export const GetPublishingReviewParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetPublishingReviewResponse = zod.object({
+  "title": zod.string(),
+  "caption": zod.string(),
+  "videoUrl": zod.string(),
+  "creatorName": zod.string(),
+  "privacyOptions": zod.array(zod.string()),
+  "commentDisabled": zod.boolean(),
+  "duetDisabled": zod.boolean(),
+  "stitchDisabled": zod.boolean(),
+  "maxDuration": zod.number(),
+  "canPost": zod.boolean()
+})
+
+
+export const ApprovePublishingReviewParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const approvePublishingReviewBodyPrivacyLevelMax = 80;
+
+
+
+export const ApprovePublishingReviewBody = zod.object({
+  "privacyLevel": zod.string().min(1).max(approvePublishingReviewBodyPrivacyLevelMax),
+  "disableComment": zod.boolean(),
+  "disableDuet": zod.boolean(),
+  "disableStitch": zod.boolean(),
+  "consent": zod.boolean(),
+  "brandContent": zod.boolean(),
+  "brandOrganic": zod.boolean()
+})
+
+export const ApprovePublishingReviewResponse = zod.object({
+  "message": zod.string()
+})
+
+
+export const launchAutopilotBodySourcesItemMax = 2048;
+
+export const launchAutopilotBodySourcesMax = 5;
+
+export const launchAutopilotBodyIdempotencyKeyMin = 16;
+export const launchAutopilotBodyIdempotencyKeyMax = 100;
+
+
+
+export const LaunchAutopilotBody = zod.object({
+  "sources": zod.array(zod.string().max(launchAutopilotBodySourcesItemMax)).min(1).max(launchAutopilotBodySourcesMax),
+  "idempotencyKey": zod.string().min(launchAutopilotBodyIdempotencyKeyMin).max(launchAutopilotBodyIdempotencyKeyMax)
+})
+
+export const LaunchAutopilotResponse = zod.object({
+  "jobIds": zod.array(zod.number().int()),
+  "acceptedMs": zod.number()
+})
+
+
+export const GetAutopilotSwarmResponseItem = zod.object({
+  "id": zod.number().int(),
+  "projectId": zod.number().int(),
+  "sourceUrl": zod.string(),
+  "title": zod.string(),
+  "status": zod.string(),
+  "stage": zod.string(),
+  "progress": zod.number(),
+  "language": zod.string(),
+  "error": zod.string().nullish(),
+  "notice": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "clips": zod.array(zod.object({
+  "index": zod.number().int(),
+  "status": zod.string(),
+  "language": zod.string(),
+  "clip": zod.object({
+  "id": zod.number().int(),
+  "language": zod.string().optional(),
+  "originalClipId": zod.number().int().nullish(),
+  "projectId": zod.number().int(),
+  "title": zod.string(),
+  "creator": zod.string(),
+  "mode": zod.string(),
+  "duration": zod.number(),
+  "score": zod.number(),
+  "hookScore": zod.number(),
+  "visualScore": zod.number(),
+  "commentaryScore": zod.number(),
+  "thumbnail": zod.string(),
+  "videoUrl": zod.string(),
+  "status": zod.string(),
+  "demo": zod.boolean(),
+  "hook": zod.string(),
+  "script": zod.string(),
+  "hashtags": zod.string(),
+  "pinnedComment": zod.string(),
+  "platforms": zod.array(zod.string()),
+  "captions": zod.boolean(),
+  "pictureInPicture": zod.boolean(),
+  "campaignId": zod.number().int().nullish(),
+  "createdAt": zod.string()
+}).optional()
+}))
+})
+export const GetAutopilotSwarmResponse = zod.array(GetAutopilotSwarmResponseItem)
+
+
+export const ControlAutopilotJobParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ControlAutopilotJobBody = zod.object({
+  "action": zod.enum(['cancel', 'retry', 'acknowledge-uncertain'])
+})
+
+export const ControlAutopilotJobResponse = zod.object({
+  "message": zod.string()
+})
+
+
+export const cloneAndDubBodyClipIdsMax = 20;
+
+
+
+export const CloneAndDubBody = zod.object({
+  "clipIds": zod.array(zod.number().int()).min(1).max(cloneAndDubBodyClipIdsMax)
+})
+
+export const CloneAndDubResponse = zod.object({
+  "jobIds": zod.array(zod.number().int()),
+  "acceptedMs": zod.number()
+})
+
+
+export const getAutopilotAccountsResponseOneTimezoneMax = 100;
+
+export const getAutopilotAccountsResponseOneSlotsItemRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const getAutopilotAccountsResponseOneSlotsMax = 12;
+
+
+
+export const GetAutopilotAccountsResponseItem = zod.object({
+  "autoEnabled": zod.boolean(),
+  "includeDubs": zod.boolean(),
+  "timezone": zod.string().max(getAutopilotAccountsResponseOneTimezoneMax),
+  "slots": zod.array(zod.string().regex(getAutopilotAccountsResponseOneSlotsItemRegExp)).min(1).max(getAutopilotAccountsResponseOneSlotsMax)
+}).and(zod.object({
+  "id": zod.number().int(),
+  "provider": zod.string(),
+  "platform": zod.string(),
+  "handle": zod.string(),
+  "connected": zod.boolean(),
+  "approved": zod.boolean(),
+  "message": zod.string()
+}))
+export const GetAutopilotAccountsResponse = zod.array(GetAutopilotAccountsResponseItem)
+
+
+export const UpdateAutopilotAccountParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateAutopilotAccountBodyTimezoneMax = 100;
+
+export const updateAutopilotAccountBodySlotsItemRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const updateAutopilotAccountBodySlotsMax = 12;
+
+
+
+export const UpdateAutopilotAccountBody = zod.object({
+  "autoEnabled": zod.boolean(),
+  "includeDubs": zod.boolean(),
+  "timezone": zod.string().max(updateAutopilotAccountBodyTimezoneMax),
+  "slots": zod.array(zod.string().regex(updateAutopilotAccountBodySlotsItemRegExp)).min(1).max(updateAutopilotAccountBodySlotsMax)
+})
+
+export const updateAutopilotAccountResponseOneTimezoneMax = 100;
+
+export const updateAutopilotAccountResponseOneSlotsItemRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const updateAutopilotAccountResponseOneSlotsMax = 12;
+
+
+
+export const UpdateAutopilotAccountResponse = zod.object({
+  "autoEnabled": zod.boolean(),
+  "includeDubs": zod.boolean(),
+  "timezone": zod.string().max(updateAutopilotAccountResponseOneTimezoneMax),
+  "slots": zod.array(zod.string().regex(updateAutopilotAccountResponseOneSlotsItemRegExp)).min(1).max(updateAutopilotAccountResponseOneSlotsMax)
+}).and(zod.object({
+  "id": zod.number().int(),
+  "provider": zod.string(),
+  "platform": zod.string(),
+  "handle": zod.string(),
+  "connected": zod.boolean(),
+  "approved": zod.boolean(),
+  "message": zod.string()
+}))
+
+
+export const DisconnectAutopilotAccountParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DisconnectAutopilotAccountResponse = zod.void()
+
+
+export const GetAutopilotScheduleResponse = zod.object({
+  "entries": zod.array(zod.object({
+  "id": zod.number().int(),
+  "accountId": zod.number().int(),
+  "clipId": zod.number().int(),
+  "title": zod.string(),
+  "platform": zod.string(),
+  "handle": zod.string(),
+  "scheduledAt": zod.coerce.date(),
+  "timezone": zod.string(),
+  "language": zod.string(),
+  "status": zod.string(),
+  "remoteId": zod.string().nullish(),
+  "error": zod.string().nullish()
+})),
+  "presets": zod.array(zod.object({
+  "platform": zod.string(),
+  "provider": zod.string(),
+  "slots": zod.array(zod.string())
+})),
+  "serviceMessage": zod.string(),
+  "workerRunning": zod.boolean(),
+  "publisherRunning": zod.boolean()
+})
+
+
 export const HealthCheckResponse = zod.object({
   "status": zod.string()
 })
@@ -125,6 +359,8 @@ export const DeleteProjectResponse = zod.void()
 
 export const ListClipsResponseItem = zod.object({
   "id": zod.number().int(),
+  "language": zod.string().optional(),
+  "originalClipId": zod.number().int().nullish(),
   "projectId": zod.number().int(),
   "title": zod.string(),
   "creator": zod.string(),
@@ -180,6 +416,8 @@ export const UpdateClipBody = zod.object({
 
 export const UpdateClipResponse = zod.object({
   "id": zod.number().int(),
+  "language": zod.string().optional(),
+  "originalClipId": zod.number().int().nullish(),
   "projectId": zod.number().int(),
   "title": zod.string(),
   "creator": zod.string(),
@@ -525,7 +763,7 @@ export const GetSocialIntegrationsResponseItem = zod.object({
   "clientId": zod.string().max(getSocialIntegrationsResponseOneClientIdMax),
   "appApproved": zod.boolean()
 }).and(zod.object({
-  "provider": zod.enum(['youtube', 'tiktok']),
+  "provider": zod.enum(['youtube', 'tiktok', 'instagram', 'x']),
   "name": zod.string(),
   "redirectUri": zod.string(),
   "scopes": zod.string(),
@@ -541,7 +779,7 @@ export const GetSocialIntegrationsResponse = zod.array(GetSocialIntegrationsResp
 
 
 export const SaveSocialIntegrationParams = zod.object({
-  "provider": zod.enum(['youtube', 'tiktok'])
+  "provider": zod.enum(['youtube', 'tiktok', 'instagram', 'x'])
 })
 
 export const saveSocialIntegrationBodyClientIdMax = 500;
@@ -561,7 +799,7 @@ export const SaveSocialIntegrationResponse = zod.object({
   "clientId": zod.string().max(saveSocialIntegrationResponseOneClientIdMax),
   "appApproved": zod.boolean()
 }).and(zod.object({
-  "provider": zod.enum(['youtube', 'tiktok']),
+  "provider": zod.enum(['youtube', 'tiktok', 'instagram', 'x']),
   "name": zod.string(),
   "redirectUri": zod.string(),
   "scopes": zod.string(),
@@ -576,14 +814,14 @@ export const SaveSocialIntegrationResponse = zod.object({
 
 
 export const DisconnectSocialIntegrationParams = zod.object({
-  "provider": zod.enum(['youtube', 'tiktok'])
+  "provider": zod.enum(['youtube', 'tiktok', 'instagram', 'x'])
 })
 
 export const DisconnectSocialIntegrationResponse = zod.void()
 
 
 export const BeginSocialAuthorizationParams = zod.object({
-  "provider": zod.enum(['youtube', 'tiktok'])
+  "provider": zod.enum(['youtube', 'tiktok', 'instagram', 'x'])
 })
 
 export const BeginSocialAuthorizationResponse = zod.void()
@@ -593,7 +831,7 @@ export const BeginSocialAuthorizationResponse = zod.void()
  * Platform OAuth callback accepts provider-returned state, code and error query fields; state is single-use, owner-bound and expires after ten minutes.
  */
 export const FinishSocialAuthorizationParams = zod.object({
-  "provider": zod.enum(['youtube', 'tiktok'])
+  "provider": zod.enum(['youtube', 'tiktok', 'instagram', 'x'])
 })
 
 export const FinishSocialAuthorizationResponse = zod.void()

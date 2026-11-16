@@ -25,15 +25,23 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AccountPreferences,
+  ActionReceipt,
   AuthState,
+  AutopilotAccount,
+  AutopilotInput,
+  AutopilotSchedule,
   Campaign,
   CampaignInput,
   Clip,
   ClipUpdate,
+  DubInput,
   ExchangeMobileAuthorizationCode200,
   ExportInput,
   ExportResult,
   HealthStatus,
+  JobAction,
+  LaunchReceipt,
   LessonUpdate,
   LoginParams,
   LogoutParams,
@@ -42,11 +50,14 @@ import type {
   PlaybookLesson,
   Project,
   ProjectInput,
+  PublishingApproval,
+  PublishingReview,
   Schedule,
   ScheduleInput,
   SocialIntegration,
   SocialIntegrationInput,
   StudioSummary,
+  SwarmJob,
   TrendingSource,
   UploadFinalizeInput,
   UploadInput,
@@ -79,6 +90,867 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetPublishingReviewUrl = (id: number,) => {
+
+
+
+
+  return `/api/autopilot/publish/${id}/review`
+}
+
+export const getPublishingReview = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<PublishingReview> => {
+
+  return customFetch<PublishingReview>(getGetPublishingReviewUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublishingReviewQueryKey = (id: number,) => {
+    return [
+    `/api/autopilot/publish/${id}/review`
+    ] as const;
+    }
+
+
+export const getGetPublishingReviewQueryOptions = <TData = Awaited<ReturnType<typeof getPublishingReview>>, TError = ErrorType<unknown>>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublishingReview>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublishingReviewQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublishingReview>>> = ({ signal }) => getPublishingReview(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublishingReview>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPublishingReviewQueryResult = NonNullable<Awaited<ReturnType<typeof getPublishingReview>>>
+export type GetPublishingReviewQueryError = ErrorType<unknown>
+
+
+export function useGetPublishingReview<TData = Awaited<ReturnType<typeof getPublishingReview>>, TError = ErrorType<unknown>>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublishingReview>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPublishingReview>>,
+          TError,
+          Awaited<ReturnType<typeof getPublishingReview>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPublishingReview<TData = Awaited<ReturnType<typeof getPublishingReview>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublishingReview>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPublishingReview>>,
+          TError,
+          Awaited<ReturnType<typeof getPublishingReview>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPublishingReview<TData = Awaited<ReturnType<typeof getPublishingReview>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublishingReview>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetPublishingReview<TData = Awaited<ReturnType<typeof getPublishingReview>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublishingReview>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPublishingReviewQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApprovePublishingReviewUrl = (id: number,) => {
+
+
+
+
+  return `/api/autopilot/publish/${id}/review`
+}
+
+export const approvePublishingReview = async (id: number,
+    publishingApproval: PublishingApproval, options?: Parameters<typeof customFetch>[1]): Promise<ActionReceipt> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ActionReceipt>(getApprovePublishingReviewUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(publishingApproval)
+  }
+);}
+
+
+
+
+
+export const getApprovePublishingReviewMutationKey = () => ['approvePublishingReview'] as const;
+
+export const getApprovePublishingReviewMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePublishingReview>>, TError,ApprovePublishingReviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approvePublishingReview>>, TError,ApprovePublishingReviewMutationVariables, TContext> => {
+
+const mutationKey = getApprovePublishingReviewMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approvePublishingReview>>, ApprovePublishingReviewMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  approvePublishingReview(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApprovePublishingReviewMutationResult = NonNullable<Awaited<ReturnType<typeof approvePublishingReview>>>
+    export type ApprovePublishingReviewMutationBody = BodyType<PublishingApproval>
+    export type ApprovePublishingReviewMutationError = ErrorType<unknown>
+    export type ApprovePublishingReviewMutationVariables = {id: number;data: BodyType<PublishingApproval>}
+
+    export const useApprovePublishingReview = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePublishingReview>>, TError,ApprovePublishingReviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof approvePublishingReview>>,
+        TError,
+        ApprovePublishingReviewMutationVariables,
+        TContext
+      > => {
+      return useMutation(getApprovePublishingReviewMutationOptions(options), queryClient);
+    }
+
+export const getLaunchAutopilotUrl = () => {
+
+
+
+
+  return `/api/autopilot/launch`
+}
+
+export const launchAutopilot = async (autopilotInput: AutopilotInput, options?: Parameters<typeof customFetch>[1]): Promise<LaunchReceipt> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<LaunchReceipt>(getLaunchAutopilotUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(autopilotInput)
+  }
+);}
+
+
+
+
+
+export const getLaunchAutopilotMutationKey = () => ['launchAutopilot'] as const;
+
+export const getLaunchAutopilotMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof launchAutopilot>>, TError,LaunchAutopilotMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof launchAutopilot>>, TError,LaunchAutopilotMutationVariables, TContext> => {
+
+const mutationKey = getLaunchAutopilotMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof launchAutopilot>>, LaunchAutopilotMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  launchAutopilot(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LaunchAutopilotMutationResult = NonNullable<Awaited<ReturnType<typeof launchAutopilot>>>
+    export type LaunchAutopilotMutationBody = BodyType<AutopilotInput>
+    export type LaunchAutopilotMutationError = ErrorType<unknown>
+    export type LaunchAutopilotMutationVariables = {data: BodyType<AutopilotInput>}
+
+    export const useLaunchAutopilot = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof launchAutopilot>>, TError,LaunchAutopilotMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof launchAutopilot>>,
+        TError,
+        LaunchAutopilotMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLaunchAutopilotMutationOptions(options), queryClient);
+    }
+
+export const getGetAutopilotSwarmUrl = () => {
+
+
+
+
+  return `/api/autopilot/swarm`
+}
+
+export const getAutopilotSwarm = async ( options?: Parameters<typeof customFetch>[1]): Promise<SwarmJob[]> => {
+
+  return customFetch<SwarmJob[]>(getGetAutopilotSwarmUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAutopilotSwarmQueryKey = () => {
+    return [
+    `/api/autopilot/swarm`
+    ] as const;
+    }
+
+
+export const getGetAutopilotSwarmQueryOptions = <TData = Awaited<ReturnType<typeof getAutopilotSwarm>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotSwarm>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAutopilotSwarmQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAutopilotSwarm>>> = ({ signal }) => getAutopilotSwarm({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAutopilotSwarm>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAutopilotSwarmQueryResult = NonNullable<Awaited<ReturnType<typeof getAutopilotSwarm>>>
+export type GetAutopilotSwarmQueryError = ErrorType<unknown>
+
+
+export function useGetAutopilotSwarm<TData = Awaited<ReturnType<typeof getAutopilotSwarm>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotSwarm>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAutopilotSwarm>>,
+          TError,
+          Awaited<ReturnType<typeof getAutopilotSwarm>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAutopilotSwarm<TData = Awaited<ReturnType<typeof getAutopilotSwarm>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotSwarm>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAutopilotSwarm>>,
+          TError,
+          Awaited<ReturnType<typeof getAutopilotSwarm>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAutopilotSwarm<TData = Awaited<ReturnType<typeof getAutopilotSwarm>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotSwarm>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetAutopilotSwarm<TData = Awaited<ReturnType<typeof getAutopilotSwarm>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotSwarm>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetAutopilotSwarmQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getControlAutopilotJobUrl = (id: number,) => {
+
+
+
+
+  return `/api/autopilot/jobs/${id}/action`
+}
+
+export const controlAutopilotJob = async (id: number,
+    jobAction: JobAction, options?: Parameters<typeof customFetch>[1]): Promise<ActionReceipt> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ActionReceipt>(getControlAutopilotJobUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(jobAction)
+  }
+);}
+
+
+
+
+
+export const getControlAutopilotJobMutationKey = () => ['controlAutopilotJob'] as const;
+
+export const getControlAutopilotJobMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof controlAutopilotJob>>, TError,ControlAutopilotJobMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof controlAutopilotJob>>, TError,ControlAutopilotJobMutationVariables, TContext> => {
+
+const mutationKey = getControlAutopilotJobMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof controlAutopilotJob>>, ControlAutopilotJobMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  controlAutopilotJob(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ControlAutopilotJobMutationResult = NonNullable<Awaited<ReturnType<typeof controlAutopilotJob>>>
+    export type ControlAutopilotJobMutationBody = BodyType<JobAction>
+    export type ControlAutopilotJobMutationError = ErrorType<unknown>
+    export type ControlAutopilotJobMutationVariables = {id: number;data: BodyType<JobAction>}
+
+    export const useControlAutopilotJob = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof controlAutopilotJob>>, TError,ControlAutopilotJobMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof controlAutopilotJob>>,
+        TError,
+        ControlAutopilotJobMutationVariables,
+        TContext
+      > => {
+      return useMutation(getControlAutopilotJobMutationOptions(options), queryClient);
+    }
+
+export const getCloneAndDubUrl = () => {
+
+
+
+
+  return `/api/autopilot/dub`
+}
+
+export const cloneAndDub = async (dubInput: DubInput, options?: Parameters<typeof customFetch>[1]): Promise<LaunchReceipt> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<LaunchReceipt>(getCloneAndDubUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(dubInput)
+  }
+);}
+
+
+
+
+
+export const getCloneAndDubMutationKey = () => ['cloneAndDub'] as const;
+
+export const getCloneAndDubMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cloneAndDub>>, TError,CloneAndDubMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cloneAndDub>>, TError,CloneAndDubMutationVariables, TContext> => {
+
+const mutationKey = getCloneAndDubMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cloneAndDub>>, CloneAndDubMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  cloneAndDub(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CloneAndDubMutationResult = NonNullable<Awaited<ReturnType<typeof cloneAndDub>>>
+    export type CloneAndDubMutationBody = BodyType<DubInput>
+    export type CloneAndDubMutationError = ErrorType<unknown>
+    export type CloneAndDubMutationVariables = {data: BodyType<DubInput>}
+
+    export const useCloneAndDub = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cloneAndDub>>, TError,CloneAndDubMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cloneAndDub>>,
+        TError,
+        CloneAndDubMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCloneAndDubMutationOptions(options), queryClient);
+    }
+
+export const getGetAutopilotAccountsUrl = () => {
+
+
+
+
+  return `/api/autopilot/accounts`
+}
+
+export const getAutopilotAccounts = async ( options?: Parameters<typeof customFetch>[1]): Promise<AutopilotAccount[]> => {
+
+  return customFetch<AutopilotAccount[]>(getGetAutopilotAccountsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAutopilotAccountsQueryKey = () => {
+    return [
+    `/api/autopilot/accounts`
+    ] as const;
+    }
+
+
+export const getGetAutopilotAccountsQueryOptions = <TData = Awaited<ReturnType<typeof getAutopilotAccounts>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotAccounts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAutopilotAccountsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAutopilotAccounts>>> = ({ signal }) => getAutopilotAccounts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAutopilotAccounts>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAutopilotAccountsQueryResult = NonNullable<Awaited<ReturnType<typeof getAutopilotAccounts>>>
+export type GetAutopilotAccountsQueryError = ErrorType<unknown>
+
+
+export function useGetAutopilotAccounts<TData = Awaited<ReturnType<typeof getAutopilotAccounts>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotAccounts>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAutopilotAccounts>>,
+          TError,
+          Awaited<ReturnType<typeof getAutopilotAccounts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAutopilotAccounts<TData = Awaited<ReturnType<typeof getAutopilotAccounts>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotAccounts>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAutopilotAccounts>>,
+          TError,
+          Awaited<ReturnType<typeof getAutopilotAccounts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAutopilotAccounts<TData = Awaited<ReturnType<typeof getAutopilotAccounts>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotAccounts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetAutopilotAccounts<TData = Awaited<ReturnType<typeof getAutopilotAccounts>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotAccounts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetAutopilotAccountsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAutopilotAccountUrl = (id: number,) => {
+
+
+
+
+  return `/api/autopilot/accounts/${id}`
+}
+
+export const updateAutopilotAccount = async (id: number,
+    accountPreferences: AccountPreferences, options?: Parameters<typeof customFetch>[1]): Promise<AutopilotAccount> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AutopilotAccount>(getUpdateAutopilotAccountUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(accountPreferences)
+  }
+);}
+
+
+
+
+
+export const getUpdateAutopilotAccountMutationKey = () => ['updateAutopilotAccount'] as const;
+
+export const getUpdateAutopilotAccountMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAutopilotAccount>>, TError,UpdateAutopilotAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAutopilotAccount>>, TError,UpdateAutopilotAccountMutationVariables, TContext> => {
+
+const mutationKey = getUpdateAutopilotAccountMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAutopilotAccount>>, UpdateAutopilotAccountMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAutopilotAccount(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAutopilotAccountMutationResult = NonNullable<Awaited<ReturnType<typeof updateAutopilotAccount>>>
+    export type UpdateAutopilotAccountMutationBody = BodyType<AccountPreferences>
+    export type UpdateAutopilotAccountMutationError = ErrorType<unknown>
+    export type UpdateAutopilotAccountMutationVariables = {id: number;data: BodyType<AccountPreferences>}
+
+    export const useUpdateAutopilotAccount = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAutopilotAccount>>, TError,UpdateAutopilotAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateAutopilotAccount>>,
+        TError,
+        UpdateAutopilotAccountMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateAutopilotAccountMutationOptions(options), queryClient);
+    }
+
+export const getDisconnectAutopilotAccountUrl = (id: number,) => {
+
+
+
+
+  return `/api/autopilot/accounts/${id}`
+}
+
+export const disconnectAutopilotAccount = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDisconnectAutopilotAccountUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisconnectAutopilotAccountMutationKey = () => ['disconnectAutopilotAccount'] as const;
+
+export const getDisconnectAutopilotAccountMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectAutopilotAccount>>, TError,DisconnectAutopilotAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectAutopilotAccount>>, TError,DisconnectAutopilotAccountMutationVariables, TContext> => {
+
+const mutationKey = getDisconnectAutopilotAccountMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectAutopilotAccount>>, DisconnectAutopilotAccountMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  disconnectAutopilotAccount(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectAutopilotAccountMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectAutopilotAccount>>>
+
+    export type DisconnectAutopilotAccountMutationError = ErrorType<unknown>
+    export type DisconnectAutopilotAccountMutationVariables = {id: number}
+
+    export const useDisconnectAutopilotAccount = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectAutopilotAccount>>, TError,DisconnectAutopilotAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectAutopilotAccount>>,
+        TError,
+        DisconnectAutopilotAccountMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDisconnectAutopilotAccountMutationOptions(options), queryClient);
+    }
+
+export const getGetAutopilotScheduleUrl = () => {
+
+
+
+
+  return `/api/autopilot/schedule`
+}
+
+export const getAutopilotSchedule = async ( options?: Parameters<typeof customFetch>[1]): Promise<AutopilotSchedule> => {
+
+  return customFetch<AutopilotSchedule>(getGetAutopilotScheduleUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAutopilotScheduleQueryKey = () => {
+    return [
+    `/api/autopilot/schedule`
+    ] as const;
+    }
+
+
+export const getGetAutopilotScheduleQueryOptions = <TData = Awaited<ReturnType<typeof getAutopilotSchedule>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotSchedule>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAutopilotScheduleQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAutopilotSchedule>>> = ({ signal }) => getAutopilotSchedule({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAutopilotSchedule>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAutopilotScheduleQueryResult = NonNullable<Awaited<ReturnType<typeof getAutopilotSchedule>>>
+export type GetAutopilotScheduleQueryError = ErrorType<unknown>
+
+
+export function useGetAutopilotSchedule<TData = Awaited<ReturnType<typeof getAutopilotSchedule>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotSchedule>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAutopilotSchedule>>,
+          TError,
+          Awaited<ReturnType<typeof getAutopilotSchedule>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAutopilotSchedule<TData = Awaited<ReturnType<typeof getAutopilotSchedule>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotSchedule>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAutopilotSchedule>>,
+          TError,
+          Awaited<ReturnType<typeof getAutopilotSchedule>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAutopilotSchedule<TData = Awaited<ReturnType<typeof getAutopilotSchedule>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotSchedule>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetAutopilotSchedule<TData = Awaited<ReturnType<typeof getAutopilotSchedule>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotSchedule>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetAutopilotScheduleQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getHealthCheckUrl = () => {
 
@@ -2233,7 +3105,7 @@ export function useGetSocialIntegrations<TData = Awaited<ReturnType<typeof getSo
 
 
 
-export const getSaveSocialIntegrationUrl = (provider: 'youtube' | 'tiktok',) => {
+export const getSaveSocialIntegrationUrl = (provider: 'youtube' | 'tiktok' | 'instagram' | 'x',) => {
 
 
 
@@ -2241,7 +3113,7 @@ export const getSaveSocialIntegrationUrl = (provider: 'youtube' | 'tiktok',) => 
   return `/api/settings/integrations/${provider}`
 }
 
-export const saveSocialIntegration = async (provider: 'youtube' | 'tiktok',
+export const saveSocialIntegration = async (provider: 'youtube' | 'tiktok' | 'instagram' | 'x',
     socialIntegrationInput: SocialIntegrationInput, options?: Parameters<typeof customFetch>[1]): Promise<SocialIntegration> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
@@ -2303,7 +3175,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SaveSocialIntegrationMutationResult = NonNullable<Awaited<ReturnType<typeof saveSocialIntegration>>>
     export type SaveSocialIntegrationMutationBody = BodyType<SocialIntegrationInput>
     export type SaveSocialIntegrationMutationError = ErrorType<unknown>
-    export type SaveSocialIntegrationMutationVariables = {provider: 'youtube' | 'tiktok';data: BodyType<SocialIntegrationInput>}
+    export type SaveSocialIntegrationMutationVariables = {provider: 'youtube' | 'tiktok' | 'instagram' | 'x';data: BodyType<SocialIntegrationInput>}
 
     export const useSaveSocialIntegration = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveSocialIntegration>>, TError,SaveSocialIntegrationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -2316,7 +3188,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getSaveSocialIntegrationMutationOptions(options), queryClient);
     }
 
-export const getDisconnectSocialIntegrationUrl = (provider: 'youtube' | 'tiktok',) => {
+export const getDisconnectSocialIntegrationUrl = (provider: 'youtube' | 'tiktok' | 'instagram' | 'x',) => {
 
 
 
@@ -2324,7 +3196,7 @@ export const getDisconnectSocialIntegrationUrl = (provider: 'youtube' | 'tiktok'
   return `/api/settings/integrations/${provider}`
 }
 
-export const disconnectSocialIntegration = async (provider: 'youtube' | 'tiktok', options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+export const disconnectSocialIntegration = async (provider: 'youtube' | 'tiktok' | 'instagram' | 'x', options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
   return customFetch<void>(getDisconnectSocialIntegrationUrl(provider),
   {
@@ -2371,7 +3243,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type DisconnectSocialIntegrationMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectSocialIntegration>>>
 
     export type DisconnectSocialIntegrationMutationError = ErrorType<unknown>
-    export type DisconnectSocialIntegrationMutationVariables = {provider: 'youtube' | 'tiktok'}
+    export type DisconnectSocialIntegrationMutationVariables = {provider: 'youtube' | 'tiktok' | 'instagram' | 'x'}
 
     export const useDisconnectSocialIntegration = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectSocialIntegration>>, TError,DisconnectSocialIntegrationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -2384,7 +3256,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getDisconnectSocialIntegrationMutationOptions(options), queryClient);
     }
 
-export const getBeginSocialAuthorizationUrl = (provider: 'youtube' | 'tiktok',) => {
+export const getBeginSocialAuthorizationUrl = (provider: 'youtube' | 'tiktok' | 'instagram' | 'x',) => {
 
 
 
@@ -2392,7 +3264,7 @@ export const getBeginSocialAuthorizationUrl = (provider: 'youtube' | 'tiktok',) 
   return `/api/social/oauth/${provider}/start`
 }
 
-export const beginSocialAuthorization = async (provider: 'youtube' | 'tiktok', options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+export const beginSocialAuthorization = async (provider: 'youtube' | 'tiktok' | 'instagram' | 'x', options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
 
   return customFetch<unknown>(getBeginSocialAuthorizationUrl(provider),
   {
@@ -2407,14 +3279,14 @@ export const beginSocialAuthorization = async (provider: 'youtube' | 'tiktok', o
 
 
 
-export const getBeginSocialAuthorizationQueryKey = (provider: 'youtube' | 'tiktok',) => {
+export const getBeginSocialAuthorizationQueryKey = (provider: 'youtube' | 'tiktok' | 'instagram' | 'x',) => {
     return [
     `/api/social/oauth/${provider}/start`
     ] as const;
     }
 
 
-export const getBeginSocialAuthorizationQueryOptions = <TData = Awaited<ReturnType<typeof beginSocialAuthorization>>, TError = ErrorType<void>>(provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getBeginSocialAuthorizationQueryOptions = <TData = Awaited<ReturnType<typeof beginSocialAuthorization>>, TError = ErrorType<void>>(provider: 'youtube' | 'tiktok' | 'instagram' | 'x', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -2437,7 +3309,7 @@ export type BeginSocialAuthorizationQueryError = ErrorType<void>
 
 
 export function useBeginSocialAuthorization<TData = Awaited<ReturnType<typeof beginSocialAuthorization>>, TError = ErrorType<void>>(
- provider: 'youtube' | 'tiktok', options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>> & Pick<
+ provider: 'youtube' | 'tiktok' | 'instagram' | 'x', options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof beginSocialAuthorization>>,
           TError,
@@ -2447,7 +3319,7 @@ export function useBeginSocialAuthorization<TData = Awaited<ReturnType<typeof be
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useBeginSocialAuthorization<TData = Awaited<ReturnType<typeof beginSocialAuthorization>>, TError = ErrorType<void>>(
- provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>> & Pick<
+ provider: 'youtube' | 'tiktok' | 'instagram' | 'x', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof beginSocialAuthorization>>,
           TError,
@@ -2457,12 +3329,12 @@ export function useBeginSocialAuthorization<TData = Awaited<ReturnType<typeof be
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useBeginSocialAuthorization<TData = Awaited<ReturnType<typeof beginSocialAuthorization>>, TError = ErrorType<void>>(
- provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ provider: 'youtube' | 'tiktok' | 'instagram' | 'x', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useBeginSocialAuthorization<TData = Awaited<ReturnType<typeof beginSocialAuthorization>>, TError = ErrorType<void>>(
- provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ provider: 'youtube' | 'tiktok' | 'instagram' | 'x', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof beginSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -2479,7 +3351,7 @@ export function useBeginSocialAuthorization<TData = Awaited<ReturnType<typeof be
 
 
 
-export const getFinishSocialAuthorizationUrl = (provider: 'youtube' | 'tiktok',) => {
+export const getFinishSocialAuthorizationUrl = (provider: 'youtube' | 'tiktok' | 'instagram' | 'x',) => {
 
 
 
@@ -2490,7 +3362,7 @@ export const getFinishSocialAuthorizationUrl = (provider: 'youtube' | 'tiktok',)
 /**
  * Platform OAuth callback accepts provider-returned state, code and error query fields; state is single-use, owner-bound and expires after ten minutes.
  */
-export const finishSocialAuthorization = async (provider: 'youtube' | 'tiktok', options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+export const finishSocialAuthorization = async (provider: 'youtube' | 'tiktok' | 'instagram' | 'x', options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
 
   return customFetch<unknown>(getFinishSocialAuthorizationUrl(provider),
   {
@@ -2505,14 +3377,14 @@ export const finishSocialAuthorization = async (provider: 'youtube' | 'tiktok', 
 
 
 
-export const getFinishSocialAuthorizationQueryKey = (provider: 'youtube' | 'tiktok',) => {
+export const getFinishSocialAuthorizationQueryKey = (provider: 'youtube' | 'tiktok' | 'instagram' | 'x',) => {
     return [
     `/api/social/oauth/${provider}/callback`
     ] as const;
     }
 
 
-export const getFinishSocialAuthorizationQueryOptions = <TData = Awaited<ReturnType<typeof finishSocialAuthorization>>, TError = ErrorType<void>>(provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getFinishSocialAuthorizationQueryOptions = <TData = Awaited<ReturnType<typeof finishSocialAuthorization>>, TError = ErrorType<void>>(provider: 'youtube' | 'tiktok' | 'instagram' | 'x', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -2535,7 +3407,7 @@ export type FinishSocialAuthorizationQueryError = ErrorType<void>
 
 
 export function useFinishSocialAuthorization<TData = Awaited<ReturnType<typeof finishSocialAuthorization>>, TError = ErrorType<void>>(
- provider: 'youtube' | 'tiktok', options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>> & Pick<
+ provider: 'youtube' | 'tiktok' | 'instagram' | 'x', options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof finishSocialAuthorization>>,
           TError,
@@ -2545,7 +3417,7 @@ export function useFinishSocialAuthorization<TData = Awaited<ReturnType<typeof f
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useFinishSocialAuthorization<TData = Awaited<ReturnType<typeof finishSocialAuthorization>>, TError = ErrorType<void>>(
- provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>> & Pick<
+ provider: 'youtube' | 'tiktok' | 'instagram' | 'x', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof finishSocialAuthorization>>,
           TError,
@@ -2555,12 +3427,12 @@ export function useFinishSocialAuthorization<TData = Awaited<ReturnType<typeof f
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useFinishSocialAuthorization<TData = Awaited<ReturnType<typeof finishSocialAuthorization>>, TError = ErrorType<void>>(
- provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ provider: 'youtube' | 'tiktok' | 'instagram' | 'x', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useFinishSocialAuthorization<TData = Awaited<ReturnType<typeof finishSocialAuthorization>>, TError = ErrorType<void>>(
- provider: 'youtube' | 'tiktok', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ provider: 'youtube' | 'tiktok' | 'instagram' | 'x', options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof finishSocialAuthorization>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 

@@ -5,6 +5,184 @@
  * Veloce Engine content production API
  * OpenAPI spec version: 1.0.0
  */
+export interface PublishingReview {
+  title: string;
+  caption: string;
+  videoUrl: string;
+  creatorName: string;
+  privacyOptions: string[];
+  commentDisabled: boolean;
+  duetDisabled: boolean;
+  stitchDisabled: boolean;
+  maxDuration: number;
+  canPost: boolean;
+}
+
+export interface PublishingApproval {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  privacyLevel: string;
+  disableComment: boolean;
+  disableDuet: boolean;
+  disableStitch: boolean;
+  consent: boolean;
+  brandContent: boolean;
+  brandOrganic: boolean;
+}
+
+export interface AutopilotInput {
+  /**
+     * @minItems 1
+     * @maxItems 5
+     * @items.maxLength 2048
+     */
+  sources: string[];
+  /**
+     * @minLength 16
+     * @maxLength 100
+     */
+  idempotencyKey: string;
+}
+
+export interface LaunchReceipt {
+  jobIds: number[];
+  acceptedMs: number;
+}
+
+export type JobActionAction = typeof JobActionAction[keyof typeof JobActionAction];
+
+
+export const JobActionAction = {
+  cancel: 'cancel',
+  retry: 'retry',
+  'acknowledge-uncertain': 'acknowledge-uncertain',
+} as const;
+
+export interface JobAction {
+  action: JobActionAction;
+}
+
+export interface ActionReceipt {
+  message: string;
+}
+
+export interface DubInput {
+  /**
+     * @minItems 1
+     * @maxItems 20
+     */
+  clipIds: number[];
+}
+
+export interface Clip {
+  id: number;
+  language?: string;
+  /** @nullable */
+  originalClipId?: number | null;
+  projectId: number;
+  title: string;
+  creator: string;
+  mode: string;
+  duration: number;
+  score: number;
+  hookScore: number;
+  visualScore: number;
+  commentaryScore: number;
+  thumbnail: string;
+  videoUrl: string;
+  status: string;
+  demo: boolean;
+  hook: string;
+  script: string;
+  hashtags: string;
+  pinnedComment: string;
+  platforms: string[];
+  captions: boolean;
+  pictureInPicture: boolean;
+  /** @nullable */
+  campaignId?: number | null;
+  createdAt: string;
+}
+
+export interface SwarmClip {
+  index: number;
+  status: string;
+  language: string;
+  clip?: Clip;
+}
+
+export interface SwarmJob {
+  id: number;
+  projectId: number;
+  sourceUrl: string;
+  title: string;
+  status: string;
+  stage: string;
+  progress: number;
+  language: string;
+  /** @nullable */
+  error?: string | null;
+  notice: string;
+  createdAt: string;
+  clips: SwarmClip[];
+}
+
+export interface AccountPreferences {
+  autoEnabled: boolean;
+  includeDubs: boolean;
+  /** @maxLength 100 */
+  timezone: string;
+  /**
+     * @minItems 1
+     * @maxItems 12
+     * @items.pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  slots: string[];
+}
+
+export type AutopilotAccount = AccountPreferences & {
+  id: number;
+  provider: string;
+  platform: string;
+  handle: string;
+  connected: boolean;
+  approved: boolean;
+  message: string;
+};
+
+export interface PublishEntry {
+  id: number;
+  accountId: number;
+  clipId: number;
+  title: string;
+  platform: string;
+  handle: string;
+  scheduledAt: string;
+  timezone: string;
+  language: string;
+  status: string;
+  /** @nullable */
+  remoteId?: string | null;
+  /** @nullable */
+  error?: string | null;
+}
+
+export interface SlotPreset {
+  platform: string;
+  provider: string;
+  slots: string[];
+}
+
+export interface AutopilotSchedule {
+  entries: PublishEntry[];
+  presets: SlotPreset[];
+  serviceMessage: string;
+  workerRunning: boolean;
+  publisherRunning: boolean;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -85,33 +263,6 @@ export interface Project {
   /** @nullable */
   error: string | null;
   demo: boolean;
-  createdAt: string;
-}
-
-export interface Clip {
-  id: number;
-  projectId: number;
-  title: string;
-  creator: string;
-  mode: string;
-  duration: number;
-  score: number;
-  hookScore: number;
-  visualScore: number;
-  commentaryScore: number;
-  thumbnail: string;
-  videoUrl: string;
-  status: string;
-  demo: boolean;
-  hook: string;
-  script: string;
-  hashtags: string;
-  pinnedComment: string;
-  platforms: string[];
-  captions: boolean;
-  pictureInPicture: boolean;
-  /** @nullable */
-  campaignId?: number | null;
   createdAt: string;
 }
 
@@ -300,6 +451,8 @@ export type SocialIntegrationProvider = typeof SocialIntegrationProvider[keyof t
 export const SocialIntegrationProvider = {
   youtube: 'youtube',
   tiktok: 'tiktok',
+  instagram: 'instagram',
+  x: 'x',
 } as const;
 
 export type SocialIntegration = SocialIntegrationInput & {

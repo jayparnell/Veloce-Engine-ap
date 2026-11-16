@@ -11,13 +11,63 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "typecheck"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "autopilot-unit"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "media-unit"
+
+[[workflows.workflow]]
+name = "typecheck"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm run typecheck"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "autopilot-unit"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/tests/slots.test.ts ../artifacts/api-server/src/tests/ingestion.test.ts ../artifacts/api-server/src/tests/adapters.test.ts"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "media-unit"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = ".pythonlibs/bin/python3 -m unittest discover -s artifacts/api-server/src/pipeline -p test_media_worker.py -v"
+
+[workflows.workflow.metadata]
+isValidation = true
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
 
 [postMerge]
 path = "scripts/post-merge.sh"
-timeoutMs = 20000
+timeoutMs = 60000
 
 [nix]
 channel = "stable-25_05"

@@ -8,6 +8,9 @@
 
 export interface Clip {
   id: number;
+  language?: string;
+  /** @nullable */
+  originalClipId?: number | null;
   projectId: number;
   title: string;
   creator: string;

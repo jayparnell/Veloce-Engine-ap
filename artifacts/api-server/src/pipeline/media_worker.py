@@ -1,7 +1,7 @@
 """Bounded local analysis and FFmpeg rendering for authorized media.
 
-Transcription is performed by the managed AI integration. Face framing is sampled,
-not identity recognition or frame-by-frame tracking. No copyright/compliance
+Transcription is performed by the managed AI integration. Face positions are tracked
+temporally at 2 Hz with bounded smoothing, not identity recognition. No copyright/compliance
 determination is made here.
 """
 import json
@@ -167,12 +167,78 @@ Style: Chapter,DejaVu Sans,42,&H0056D9A8,&H000000FF,&H00101010,&H80000000,-1,0,0
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events = [f"Dialogue: 0,0:00:00.00,{ass_time(min(duration, 3))},Hook,,0,0,0,,{{\\fad(120,200)}}{ass_text(hook)}"]
-    for word in words:
+    for index, word in enumerate(words):
+        # Keep neighboring words visible; only the currently spoken word is emerald.
+        group_start = index // 4 * 4
+        phrase = []
+        for j in range(group_start, min(len(words), group_start + 4)):
+            color = r"{\c&H0056D9A8&\b1}" if j == index else r"{\c&H00FFFFFF&}"
+            phrase.append(color + ass_text(words[j]["text"]))
         effect = r"{\fad(20,40)\fscx90\fscy90\t(0,70,\fscx100\fscy100)}"
-        events.append(f"Dialogue: 0,{ass_time(word['start'])},{ass_time(word['end'])},Caption,,0,0,0,,{effect}{ass_text(word['text'])}")
+        events.append(f"Dialogue: 0,{ass_time(word['start'])},{ass_time(word['end'])},Caption,,0,0,0,,{effect}{' '.join(phrase)}")
     for start, title in chapters:
         events.append(f"Dialogue: 1,{ass_time(start)},{ass_time(start + 2.5)},Chapter,,0,0,0,,{{\\fad(150,200)}}{ass_text(title)}")
     Path(path).write_text(header + "\n".join(events) + "\n")
+
+def track_faces(source, start, length):
+    """Detect at 2Hz, smooth movement and reset after >1s gaps. Never infer gameplay from a single face."""
+    import cv2
+    cascade_dir = getattr(getattr(cv2, "data", None), "haarcascades", "")
+    cascade_file = os.path.join(cascade_dir, "haarcascade_frontalface_default.xml")
+    if not os.path.exists(cascade_file):
+        return [], False
+    classifier = cv2.CascadeClassifier(cascade_file)
+    cap = cv2.VideoCapture(source)
+    points, corner_hits, detections = [], 0, 0
+    previous = None
+    try:
+        for n in range(math.ceil(length * 2)):
+            at = n / 2
+            cap.set(cv2.CAP_PROP_POS_MSEC, (start + at) * 1000)
+            ok, frame = cap.read()
+            if not ok:
+                continue
+            h, w = frame.shape[:2]
+            ratio = min(1., 640 / w)
+            small = cv2.resize(frame, (int(w * ratio), int(h * ratio)))
+            faces = classifier.detectMultiScale(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY), 1.1, 5)
+            if len(faces):
+                # Prefer spatially continuous detections to avoid switching among people.
+                if previous:
+                    face = min(faces, key=lambda f: abs((f[0] + f[2] / 2) / (w * ratio) - previous[0]))
+                else:
+                    face = max(faces, key=lambda f: f[2] * f[3])
+                x, y, fw, fh = face
+                current = [(x + fw / 2) / (w * ratio), (y + fh / 2) / (h * ratio),
+                           max(fw / (w * ratio), fh / (h * ratio))]
+                detections += 1
+                # Consistent small face in a corner supports a webcam + content layout.
+                corner_hits += int(current[2] < .23 and (current[0] < .25 or current[0] > .75)
+                                   and (current[1] < .35 or current[1] > .65) and w / h > 1.5)
+                if previous:
+                    current = [previous[i] * .45 + current[i] * .55 for i in range(3)]
+                previous = current
+                points.append({"t": at, "x": current[0], "y": current[1], "size": current[2]})
+            else:
+                # Bounded center fallback during missing/occluded detections.
+                previous = None
+                points.append({"t": at, "x": .5, "y": .5, "size": .3})
+    finally:
+        cap.release()
+    coverage = detections / max(1, math.ceil(length * 2))
+    if coverage < .25:
+        return [], False
+    return points, coverage >= .65 and corner_hits / max(1, detections) >= .8
+
+def tracking_expression(points, field, pixels, extent):
+    """Piecewise-linear motion; clamp every crop to the source bounds."""
+    values = [(p["t"], max(0, min(pixels - extent, p[field] * pixels - extent / 2))) for p in points]
+    if not values:
+        return "(iw-ow)/2" if field == "x" else "(ih-oh)/2"
+    expr = f"{values[-1][1]:.2f}"
+    for (t0, a), (t1, b) in reversed(list(zip(values, values[1:]))):
+        expr = f"if(lt(t,{t1:.3f}),{a:.2f}+({b-a:.2f})*(t-{t0:.3f})/{max(.001,t1-t0):.3f},{expr})"
+    return expr
 
 
 def render(config_path):
@@ -185,19 +251,27 @@ def render(config_path):
     stream = next(s for s in source_info["streams"] if s["codec_type"] == "video")
     width, height = int(stream["width"]), int(stream["height"])
     for index, segment in enumerate(config["segments"]):
-        length = min(45, max(1, segment["end"] - segment["start"]))
+        length = min(45, segment["end"] - segment["start"])
+        if length <= 0:
+            raise ValueError("Invalid source edit interval")
         output = str(work / f"{Path(config_path).stem}-part-{index}.mp4")
         inputs = ["ffmpeg", "-v", "error", "-y", "-ss", str(segment["start"]), "-t", str(length), "-i", config["source"]]
-        face = config.get("face")
-        base = "[0:v]scale=1116:1984:force_original_aspect_ratio=increase,crop=1080:1920:x='(iw-ow)/2+8*sin(t/3)':y='(ih-oh)/2',setsar=1,fps=60,eq=contrast=1.035:saturation=1.06[base]"
-        if face and config["mode"] == "commentary":
-            crop = max(2, int(min(width, height) * min(face[2], .5)) // 2 * 2)
-            x = max(0, min(width - crop, int(face[0] * width - crop / 2))) // 2 * 2
-            y = max(0, min(height - crop, int(face[1] * height - crop / 2))) // 2 * 2
-            filters = f"[0:v]split=2[game][cam];[game]scale=1116:1984:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=60[base];[cam]crop={crop}:{crop}:{x}:{y},scale=340:340,setsar=1[face];[base][face]overlay=x='700+6*sin(t)':y=400[v]"
+        points, split = track_faces(config["source"], segment["start"], length)
+        if points and split:
+            crop = min(width, height, max(2, int(max(p["size"] for p in points) * max(width, height) * 2.2) // 2 * 2))
+            x = tracking_expression(points, "x", width, crop)
+            y = tracking_expression(points, "y", height, crop)
+            filters = f"[0:v]split=2[content][cam];[content]scale=1080:1280:force_original_aspect_ratio=decrease,pad=1080:1280:(ow-iw)/2:(oh-ih)/2,setsar=1[base];[cam]crop={crop}:{crop}:x='{x}':y='{y}',scale=1080:640:force_original_aspect_ratio=increase,crop=1080:640,setsar=1[face];[face][base]vstack=inputs=2,fps=60[v]"
+        elif points:
+            crop_h = min(height, int(width * 16 / 9) // 2 * 2)
+            crop_w = min(width, int(crop_h * 9 / 16) // 2 * 2)
+            x = tracking_expression(points, "x", width, crop_w)
+            y = tracking_expression(points, "y", height, crop_h)
+            filters = f"[0:v]crop={crop_w}:{crop_h}:x='{x}':y='{y}',scale=1080:1920,setsar=1,fps=60[v]"
         else:
-            filters = base + ";[base]null[v]"
-        run(inputs + ["-filter_complex", filters, "-map", "[v]", "-map", "0:a:0", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-threads", "2", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-pix_fmt", "yuv420p", output])
+            # No face evidence: preserve all source content in a bounded fit, not an invented webcam.
+            filters = "[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x09090B,setsar=1,fps=60[v]"
+        run(inputs + ["-filter_complex_threads", "1", "-filter_complex", filters, "-map", "[v]", "-map", "0:a:0", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-threads", "2", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-pix_fmt", "yuv420p", output])
         parts.append(output)
         chapters.append((elapsed, f"{index + 1:02d} / {segment['title']}"))
         elapsed += length
@@ -243,7 +317,7 @@ def render(config_path):
         filters += [f"[{next_input}:v]scale=180:-1[mark]", "[sub][mark]overlay=60:600[marked]"]
         video_label = "marked"
     rendered = str(work / f"{Path(config_path).stem}-rendered.mp4")
-    run(inputs + ["-filter_complex", ";".join(filters), "-map", f"[{video_label}]", "-map", f"[{audio_label}]", "-t", str(elapsed),
+    run(inputs + ["-filter_complex_threads", "1", "-filter_complex", ";".join(filters), "-map", f"[{video_label}]", "-map", f"[{audio_label}]", "-t", str(elapsed),
                   "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-threads", "2", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-pix_fmt", "yuv420p", "-movflags", "+faststart", rendered])
     if config["mode"] == "bounty":
         cta = str(work / f"{Path(config_path).stem}-cta.txt")

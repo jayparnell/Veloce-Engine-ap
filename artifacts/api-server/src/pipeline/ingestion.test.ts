@@ -6,7 +6,7 @@ test("full VOD selection allows one hour without a truncated download section", 
   const args = vodArguments("https://youtu.be/authorized", "/tmp/test.mp4");
   assert(!args.includes("--download-sections"));
   assert(args.includes("!is_live & duration <= 3600"));
-  assert(args.includes("youtube:player_client=android,web"));
+  assert(args.includes("youtube:player_client=android,ios,web"));
   assert(args.includes("bestvideo[height<=1080]+bestaudio/best[height<=1080]"));
 });
 test("fallback downloads the full source with a different client/stream profile", async () => {

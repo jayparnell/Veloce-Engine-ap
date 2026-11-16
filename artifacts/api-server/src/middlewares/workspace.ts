@@ -1,6 +1,5 @@
 import type { RequestHandler } from "express";
 import { randomUUID } from "node:crypto";
-import { seedWorkspace } from "../lib/demo";
 
 declare global {
   namespace Express {
@@ -20,7 +19,7 @@ export const workspaceMiddleware: RequestHandler = async (req, res, next) => {
   req.workspaceId = req.isAuthenticated() ? `user:${req.user.id}` : `guest:${visitor}`;
   try {
     if (!initialized.has(req.workspaceId)) {
-      await seedWorkspace(req.workspaceId);
+      // New visitors and accounts start empty. Historical media is never deleted.
       if (initialized.size > 5000) initialized.clear();
       initialized.set(req.workspaceId, Date.now());
     }

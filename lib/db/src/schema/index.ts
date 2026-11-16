@@ -23,3 +23,4 @@ export * from "./campaigns";
 export * from "./operations";
 export * from "./uploads";
 export * from "./social";
+export * from "./autopilot";

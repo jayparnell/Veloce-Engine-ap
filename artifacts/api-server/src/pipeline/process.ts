@@ -11,16 +11,19 @@ import { finalizeUpload } from "../lib/uploads";
 import { sampleClips } from "../lib/demo";
 import { transcribeSource, synthesizeVoiceover } from "./audio";
 import { ingestVod, sourceToolError, SourceIngestionError, MAX_REMOTE_BYTES } from "./ingestion";
+import { jobContext } from "./job-context";
+import { workspaceRoot as root, mediaPython as python, mediaRenderer as worker } from "./paths";
 
-const root = resolve(process.cwd(), "../..");
 const workRoot = join(root, "generated-artifacts", "media-work");
-const python = join(root, ".pythonlibs/bin/python3");
-const worker = resolve(process.cwd(), "src/pipeline/media_worker.py");
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function command(executable: string, args: string[], timeout = 300000): Promise<string> {
   return new Promise((resolveOutput, reject) => {
+    const signal = jobContext.getStore()?.abort.signal;
+    if (signal?.aborted) { reject(new Error("Processing cancelled.")); return; }
     const child = spawn(executable, args, { detached: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, OMP_NUM_THREADS: "2" } });
+    const abort = () => { try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch {} };
+    signal?.addEventListener("abort", abort, { once: true });
     let out = "";
     let error = "";
     const timer = setTimeout(() => {
@@ -31,9 +34,10 @@ export function command(executable: string, args: string[], timeout = 300000): P
     }, timeout);
     child.stdout.on("data", (chunk: Buffer) => { if (out.length < 8_000_000) out += chunk.toString(); });
     child.stderr.on("data", (chunk: Buffer) => { error = (error + chunk.toString()).slice(-2000); });
-    child.on("error", (err) => { clearTimeout(timer); reject(new Error(`Media tool unavailable: ${err.message}`)); });
+    child.on("error", (err) => { clearTimeout(timer); signal?.removeEventListener("abort", abort); reject(new Error(`Media tool unavailable: ${err.message}`)); });
     child.on("close", (code) => {
       clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
       if (code === 0) resolveOutput(out);
       else {
         if (executable === "yt-dlp") { reject(new SourceIngestionError(sourceToolError(error))); return; }

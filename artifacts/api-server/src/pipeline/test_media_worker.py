@@ -41,6 +41,39 @@ class MediaWorkerTests(unittest.TestCase):
             text = path.read_text()
             self.assertEqual(text.count(",Caption,,"), 3)
             self.assertIn(r"\fscx90", text)
+            self.assertIn(r"\c&H0056D9A8&", text)
+            self.assertIn(r"\c&H00FFFFFF&", text)
+            self.assertIn("One", text)
+            self.assertIn("word", text)
+
+    def test_estimated_caption_accuracy_on_labeled_synthetic_fixture(self):
+        # These reference boundaries are an explicit synthetic fixture, not a claim about human speech.
+        words = worker.timed_words("One short example really matters", [[.1, .9], [1.2, 3.0]], 3)
+        reference = [.1, .4, .8, 1.5, 2.2]
+        errors = sorted(abs(w["start"] - truth) for w, truth in zip(words, reference))
+        mae = sum(errors) / len(errors)
+        p95 = errors[-1]
+        print(f"Synthetic caption boundary error: MAE={mae:.3f}s p95={p95:.3f}s (5 words; not human-speech validation)")
+        self.assertLess(mae, .35)
+        self.assertLess(p95, .6)
+
+    def test_campaign_bed_has_fifteen_percent_gain(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bed.wav"
+            worker.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                        "sine=frequency=200:sample_rate=16000:duration=1",
+                        "-af", "volume=0.15", str(path)])
+            with wave.open(str(path)) as wav:
+                samples = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16).astype(float)
+            # FFmpeg sine defaults to amplitude 4095; measured gain must match before codec loss.
+            self.assertAlmostEqual(math.sqrt(np.mean(samples ** 2)) / (4095 / math.sqrt(2)), .15, delta=.002)
+
+    def test_temporal_crop_expression_moves_and_clamps(self):
+        points = [{"t": 0, "x": .1}, {"t": .5, "x": .8}, {"t": 1, "x": .9}]
+        expression = worker.tracking_expression(points, "x", 1920, 608)
+        self.assertIn("if(lt(t,0.500)", expression)
+        self.assertIn("1312.00", expression)
+        self.assertNotIn("sin(", expression)
 
     def test_source_returns_to_full_volume_outside_speech(self):
         with tempfile.TemporaryDirectory() as directory:

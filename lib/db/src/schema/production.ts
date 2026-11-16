@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean, timestamp, jsonb, real } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp, jsonb, real, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 
 export const projectsTable = pgTable("projects", {
@@ -27,6 +27,10 @@ export const sourceVideosTable = pgTable("source_videos", {
 });
 export const generatedClipsTable = pgTable("generated_clips", {
   id: serial("id").primaryKey(),
+  jobId: integer("job_id"),
+  momentIndex: integer("moment_index"),
+  language: text("language").notNull().default("en"),
+  originalClipId: integer("original_clip_id"),
   projectId: integer("project_id").notNull().references(() => projectsTable.id, { onDelete: "cascade" }),
   ownerId: text("owner_id").notNull(),
   title: text("title").notNull(),
@@ -53,7 +57,7 @@ export const generatedClipsTable = pgTable("generated_clips", {
   pictureInPicture: boolean("picture_in_picture").notNull().default(true),
   campaignId: integer("campaign_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [uniqueIndex("clip_job_moment").on(t.jobId, t.momentIndex)]);
 export const insertProjectSchema = createInsertSchema(projectsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSourceVideoSchema = createInsertSchema(sourceVideosTable).omit({ id: true });
 export const insertClipSchema = createInsertSchema(generatedClipsTable).omit({ id: true, createdAt: true });

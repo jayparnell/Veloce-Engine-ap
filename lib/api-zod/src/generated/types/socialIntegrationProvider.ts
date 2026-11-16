@@ -12,4 +12,6 @@ export type SocialIntegrationProvider = typeof SocialIntegrationProvider[keyof t
 export const SocialIntegrationProvider = {
   youtube: 'youtube',
   tiktok: 'tiktok',
+  instagram: 'instagram',
+  x: 'x',
 } as const;

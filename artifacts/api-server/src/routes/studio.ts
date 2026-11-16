@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
-import { db, projectsTable, generatedClipsTable, campaignsTable, analyticsLogsTable } from "@workspace/db";
-import { and, eq, desc, inArray } from "drizzle-orm";
+import { db, projectsTable, generatedClipsTable, campaignsTable, analyticsLogsTable, autopilotAdmissionsTable } from "@workspace/db";
+import { and, eq, desc, inArray, sql } from "drizzle-orm";
+import { autopilotUsage } from "../lib/autopilotQuota";
 import { GetStudioSummaryResponse, ListTrendingSourcesResponse, ListProjectsResponse, CreateProjectBody, CreateProjectResponse, GetProjectParams, GetProjectResponse, DeleteProjectParams, ListClipsResponse, UpdateClipBody, UpdateClipParams, UpdateClipResponse, DeleteClipParams, CreateExportBody, CreateExportResponse } from "@workspace/api-zod";
 import { trendingSources } from "../lib/demo";
 import { finalizeUpload } from "../lib/uploads";
@@ -35,6 +36,7 @@ router.get("/projects", async (req, res): Promise<void> => {
   res.json(ListProjectsResponse.parse((await db.select().from(projectsTable).where(and(eq(projectsTable.ownerId, req.workspaceId), req.isAuthenticated() ? eq(projectsTable.demo, false) : undefined)).orderBy(desc(projectsTable.id))).map(jsonDates)));
 });
 router.post("/projects", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Log in to process media. Simulated launches are no longer supported." }); return; }
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Provide a source URL, transformation mode, and 1–4 clips." }); return; }
   const input = { ...parsed.data, demo: req.isAuthenticated() ? false : parsed.data.demo };
@@ -57,8 +59,9 @@ router.post("/projects", async (req, res): Promise<void> => {
   }
   if (input.mode === "bounty" && !input.campaignId) { res.status(400).json({ error: "Select a sponsor campaign for Bounty mode." }); return; }
   const created = await db.transaction(async (tx) => {
-    const { sql } = await import("drizzle-orm");
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${req.workspaceId}))`);
+    const usage = await tx.execute(autopilotUsage(req.workspaceId));
+    if (Number(usage.rows[0]?.daily) >= 20 || Number(usage.rows[0]?.active) >= 10) return null;
     const active = await tx.select({ id: projectsTable.id }).from(projectsTable).where(and(eq(projectsTable.ownerId, req.workspaceId), inArray(projectsTable.status, ["queued", "processing"])));
     if (active.length >= 2) return null;
     const [row] = await tx.insert(projectsTable).values({
@@ -66,10 +69,11 @@ router.post("/projects", async (req, res): Promise<void> => {
       sourceUrl: input.sourceUrl, mode: input.mode, clipCount: input.clipCount, campaignId: input.campaignId,
       demo: !!input.demo,
     }).returning();
+    if (!input.demo) await tx.insert(autopilotAdmissionsTable).values({ ownerId: req.workspaceId, requestKey: `legacy:${row!.id}`, inputHash: "legacy", projectId: row!.id });
     await tx.insert(analyticsLogsTable).values({ ownerId: req.workspaceId, message: `${input.demo ? "Demo" : "Media"} batch queued with ${input.clipCount} clips.` });
     return row;
   });
-  if (!created) { res.status(429).json({ error: "Two batches are already queued. Wait for one to finish." }); return; }
+  if (!created) { res.status(429).json({ error: "Workspace queue or daily quota reached. Wait before launching again." }); return; }
   res.status(201).json(CreateProjectResponse.parse(jsonDates(created)));
 });
 router.get("/projects/:id", async (req, res): Promise<void> => {

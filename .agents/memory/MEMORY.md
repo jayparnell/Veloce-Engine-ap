@@ -2,3 +2,4 @@
 - [Capability readiness](capability-readiness.md) — avoid synchronous tool launches in request-time capability checks.
 - [Storage SDK compatibility](storage-sdk-compatibility.md) — preserve sidecar auth and verify private reads/writes before upgrading storage dependencies.
 - [Preview session cookies](preview-session-cookies.md) — Preview may rewrite SameSite; verify app policy and persistence without logging cookie values.
+- [Publishing consent](publishing-consent.md) — automation does not backfill the historical vault; TikTok still requires per-video review and privacy/music consent.

@@ -6,6 +6,125 @@ info:
 servers:
   - url: /api
 paths:
+  /autopilot/publish/{id}/review:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      operationId: getPublishingReview
+      responses:
+        "200":
+          description: Current TikTok creator restrictions and specific content for review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublishingReview" }
+    post:
+      operationId: approvePublishingReview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublishingApproval" }
+      responses:
+        "200":
+          description: Specific content approved for direct posting
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionReceipt" }
+  /autopilot/launch:
+    post:
+      operationId: launchAutopilot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AutopilotInput" }
+      responses:
+        "202":
+          description: Durably accepted before media or AI work
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LaunchReceipt" }
+  /autopilot/swarm:
+    get:
+      operationId: getAutopilotSwarm
+      responses:
+        "200":
+          description: Private recoverable source and clip progress
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SwarmJob" }
+  /autopilot/jobs/{id}/action:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      operationId: controlAutopilotJob
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JobAction" }
+      responses:
+        "200":
+          description: Action persisted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionReceipt" }
+  /autopilot/dub:
+    post:
+      operationId: cloneAndDub
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DubInput" }
+      responses:
+        "202":
+          description: Unique ES and PT jobs accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LaunchReceipt" }
+  /autopilot/accounts:
+    get:
+      operationId: getAutopilotAccounts
+      responses:
+        "200":
+          description: Separately authorized accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AutopilotAccount" }
+  /autopilot/accounts/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateAutopilotAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AccountPreferences" }
+      responses:
+        "200":
+          description: Preferences persisted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutopilotAccount" }
+    delete:
+      operationId: disconnectAutopilotAccount
+      responses:
+        "204": { description: Disconnected without deleting media }
+  /autopilot/schedule:
+    get:
+      operationId: getAutopilotSchedule
+      responses:
+        "200":
+          description: Actual publishing queue and service status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutopilotSchedule" }
   /healthz:
     get:
       operationId: healthCheck
@@ -282,7 +401,7 @@ paths:
                 items: { $ref: "#/components/schemas/SocialIntegration" }
   /settings/integrations/{provider}:
     parameters:
-      - { name: provider, in: path, required: true, schema: { type: string, enum: [youtube, tiktok] } }
+      - { name: provider, in: path, required: true, schema: { type: string, enum: [youtube, tiktok, instagram, x] } }
     put:
       operationId: saveSocialIntegration
       requestBody:
@@ -304,7 +423,7 @@ paths:
     get:
       operationId: beginSocialAuthorization
       parameters:
-        - { name: provider, in: path, required: true, schema: { type: string, enum: [youtube, tiktok] } }
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [youtube, tiktok, instagram, x] } }
       responses:
         "302": { description: Redirect to platform consent after configuration checks }
         "401": { description: Login required }
@@ -314,7 +433,7 @@ paths:
       operationId: finishSocialAuthorization
       description: Platform OAuth callback accepts provider-returned state, code and error query fields; state is single-use, owner-bound and expires after ten minutes.
       parameters:
-        - { name: provider, in: path, required: true, schema: { type: string, enum: [youtube, tiktok] } }
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [youtube, tiktok, instagram, x] } }
       responses:
         "302": { description: Return to Settings with authorization result; no credentials returned }
   /login:
@@ -347,6 +466,135 @@ paths:
               schema: { type: object, additionalProperties: true }
 components:
   schemas:
+    PublishingReview:
+      type: object
+      required: [title, caption, videoUrl, creatorName, privacyOptions, commentDisabled, duetDisabled, stitchDisabled, maxDuration, canPost]
+      properties:
+        title: { type: string }
+        caption: { type: string }
+        videoUrl: { type: string }
+        creatorName: { type: string }
+        privacyOptions: { type: array, items: { type: string } }
+        commentDisabled: { type: boolean }
+        duetDisabled: { type: boolean }
+        stitchDisabled: { type: boolean }
+        maxDuration: { type: number }
+        canPost: { type: boolean }
+    PublishingApproval:
+      type: object
+      required: [privacyLevel, disableComment, disableDuet, disableStitch, consent, brandContent, brandOrganic]
+      properties:
+        privacyLevel: { type: string, minLength: 1, maxLength: 80 }
+        disableComment: { type: boolean }
+        disableDuet: { type: boolean }
+        disableStitch: { type: boolean }
+        consent: { type: boolean }
+        brandContent: { type: boolean }
+        brandOrganic: { type: boolean }
+    AutopilotInput:
+      type: object
+      required: [sources, idempotencyKey]
+      properties:
+        sources: { type: array, minItems: 1, maxItems: 5, items: { type: string, maxLength: 2048 } }
+        idempotencyKey: { type: string, minLength: 16, maxLength: 100 }
+    LaunchReceipt:
+      type: object
+      required: [jobIds, acceptedMs]
+      properties:
+        jobIds: { type: array, items: { type: integer } }
+        acceptedMs: { type: number }
+    JobAction:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [cancel, retry, acknowledge-uncertain] }
+    ActionReceipt:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+    DubInput:
+      type: object
+      required: [clipIds]
+      properties:
+        clipIds: { type: array, minItems: 1, maxItems: 20, items: { type: integer } }
+    SwarmClip:
+      type: object
+      required: [index, status, language]
+      properties:
+        index: { type: integer }
+        status: { type: string }
+        language: { type: string }
+        clip: { $ref: "#/components/schemas/Clip" }
+    SwarmJob:
+      type: object
+      required: [id, projectId, sourceUrl, title, status, stage, progress, language, clips, notice, createdAt]
+      properties:
+        id: { type: integer }
+        projectId: { type: integer }
+        sourceUrl: { type: string }
+        title: { type: string }
+        status: { type: string }
+        stage: { type: string }
+        progress: { type: number }
+        language: { type: string }
+        error: { type: ["string", "null"] }
+        notice: { type: string }
+        createdAt: { type: string, format: date-time }
+        clips: { type: array, items: { $ref: "#/components/schemas/SwarmClip" } }
+    AccountPreferences:
+      type: object
+      required: [autoEnabled, includeDubs, timezone, slots]
+      properties:
+        autoEnabled: { type: boolean }
+        includeDubs: { type: boolean }
+        timezone: { type: string, maxLength: 100 }
+        slots: { type: array, minItems: 1, maxItems: 12, items: { type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$" } }
+    AutopilotAccount:
+      allOf:
+        - { $ref: "#/components/schemas/AccountPreferences" }
+        - type: object
+          required: [id, provider, platform, handle, connected, approved, message]
+          properties:
+            id: { type: integer }
+            provider: { type: string }
+            platform: { type: string }
+            handle: { type: string }
+            connected: { type: boolean }
+            approved: { type: boolean }
+            message: { type: string }
+    PublishEntry:
+      type: object
+      required: [id, accountId, clipId, title, platform, handle, scheduledAt, timezone, status, language]
+      properties:
+        id: { type: integer }
+        accountId: { type: integer }
+        clipId: { type: integer }
+        title: { type: string }
+        platform: { type: string }
+        handle: { type: string }
+        scheduledAt: { type: string, format: date-time }
+        timezone: { type: string }
+        language: { type: string }
+        status: { type: string }
+        remoteId: { type: ["string", "null"] }
+        error: { type: ["string", "null"] }
+    AutopilotSchedule:
+      type: object
+      required: [entries, presets, serviceMessage, workerRunning, publisherRunning]
+      properties:
+        entries: { type: array, items: { $ref: "#/components/schemas/PublishEntry" } }
+        presets: { type: array, items: { $ref: "#/components/schemas/SlotPreset" } }
+        serviceMessage: { type: string }
+        workerRunning: { type: boolean }
+        publisherRunning: { type: boolean }
+    SlotPreset:
+      type: object
+      required: [platform, provider, slots]
+      properties:
+        platform: { type: string }
+        provider: { type: string }
+        slots: { type: array, items: { type: string } }
     HealthStatus:
       type: object
       required: [status]
@@ -424,6 +672,8 @@ components:
       required: [id, projectId, title, creator, mode, duration, score, hookScore, visualScore, commentaryScore, thumbnail, videoUrl, status, demo, hook, script, hashtags, pinnedComment, platforms, captions, pictureInPicture, createdAt]
       properties:
         id: { type: integer }
+        language: { type: string }
+        originalClipId: { type: ["integer", "null"] }
         projectId: { type: integer }
         title: { type: string }
         creator: { type: string }
@@ -594,7 +844,7 @@ components:
         - type: object
           required: [provider, name, redirectUri, scopes, secretName, secretConfigured, apiKeyName, apiKeyConfigured, connected, canConnect, message]
           properties:
-            provider: { type: string, enum: [youtube, tiktok] }
+            provider: { type: string, enum: [youtube, tiktok, instagram, x] }
             name: { type: string }
             redirectUri: { type: string }
             scopes: { type: string }
