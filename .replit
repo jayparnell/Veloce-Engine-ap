@@ -36,6 +36,10 @@ args = "service-lifecycle"
 task = "workflow.run"
 args = "publisher-process"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "render-guardrails"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -87,6 +91,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/tests/publisher-process.test.ts"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "render-guardrails"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/scripts exec tsx --test --test-concurrency=1 ../artifacts/api-server/src/tests/guardrails.test.ts ../artifacts/api-server/src/tests/queue.test.ts"
 
 [workflows.workflow.metadata]
 isValidation = true

@@ -10,14 +10,15 @@ import { publishAdapter, ReconciliationRequired, ReviewRequired, type AdapterCon
 import { assignReadyClips } from "./allocator";
 import { startPollLoop } from "../lib/poll-loop";
 import { pollReadiness } from "../lib/worker-readiness";
+import { nextFailure, redactError } from "../lib/failure-policy";
 
 export async function runPublishWork(work: PublishWork, transport: typeof fetch = fetch) {
   const [account] = await db.select().from(accounts).where(eq(accounts.id, work.accountId));
   const [clip] = await db.select().from(clips).where(and(eq(clips.id, work.clipId), eq(clips.ownerId, work.ownerId)));
   const provider = providerOf(account?.provider);
-  if (!account || !clip || !provider || clip.demo || !clip.objectPath) throw new Error("Private ready clip or supported account not found.");
+  if (!account || !clip || !provider || clip.demo || !clip.objectPath) throw new ProviderError(400, "Private ready clip or supported account not found.");
   const [config] = await db.select().from(socialConfigsTable).where(and(eq(socialConfigsTable.ownerId, account.ownerId), eq(socialConfigsTable.provider, provider)));
-  if (!account.connected || !account.approved || !account.autoEnabled || !config?.appApproved || !config.clientId) return;
+  if (!account.connected || !account.approved || !account.autoEnabled || !config?.appApproved || !config.clientId) throw new ReviewRequired("Publishing is disabled or application approval is missing. Check account settings before resuming.");
   const required = PROVIDERS[provider].scopes.split(/[,\s]+/), granted = account.scopes.split(/[,\s]+/);
   if (!required.every((s) => granted.includes(s))) {
     await db.update(queue).set({ status: "blocked", error: "Required posting scopes are missing. Reauthorize this account." }).where(eq(queue.id, work.id)); return;
@@ -67,10 +68,11 @@ export async function runPublishWork(work: PublishWork, transport: typeof fetch 
     },
   };
   const result = await publishAdapter(context);
+  if (result.status === "failed") throw new ProviderError(400, result.error ?? "Provider rejected media processing. Review the saved provider identifiers.");
   if (result.status === "published" && !result.remoteId) throw new ReconciliationRequired("Provider did not confirm a remote post ID.");
-  await db.update(queue).set({ status: result.status, remoteId: result.remoteId ?? null, error: result.error ?? null, updatedAt: new Date(), retryAt: result.status === "processing" ? new Date(Date.now() + 60000) : null }).where(eq(queue.id, work.id));
+  await db.update(queue).set({ status: result.status, failureKind: null, remoteId: result.remoteId ?? null, error: result.error ?? null, updatedAt: new Date(), retryAt: result.status === "processing" ? new Date(Date.now() + 60000) : null }).where(eq(queue.id, work.id));
 }
-export async function publisherTick(shouldStop = () => false) {
+export async function publisherTick(shouldStop = () => false, run = runPublishWork, onlyOwner: string | null = null) {
   const connection = await pool.connect();
   let acquired = false;
   try {
@@ -80,26 +82,43 @@ export async function publisherTick(shouldStop = () => false) {
     const result = await connection.query(`SELECT q.* FROM autopilot_publish_queue q JOIN social_accounts a ON a.id=q.account_id
       WHERE a.connected=true AND a.approved=true AND a.auto_enabled=true AND q.scheduled_at<=now()
       AND (q.retry_at IS NULL OR q.retry_at<=now()) AND q.status IN ('scheduled','processing','publishing','retry')
-      ORDER BY q.scheduled_at LIMIT 12`);
+       AND ($1::text IS NULL OR q.owner_id=$1)
+       ORDER BY q.scheduled_at LIMIT 12`, [onlyOwner]);
     for (const raw of result.rows) {
       if (shouldStop()) break;
       const [work] = await db.select().from(queue).where(eq(queue.id, Number(raw.id)));
       if (shouldStop()) break;
       if (!work) continue;
-      await db.update(queue).set({ status: "publishing", attempts: work.attempts + 1, updatedAt: new Date() }).where(eq(queue.id, work.id));
-      try { await runPublishWork(work); }
+      await db.update(queue).set({ status: "publishing", updatedAt: new Date() }).where(eq(queue.id, work.id));
+      try { await run(work); }
       catch (error) {
-        const status = error instanceof ReviewRequired ? "needs_review" : error instanceof ReconciliationRequired ? "reconciliation_required" : error instanceof ProviderError && error.status === 429 ? "retry" : error instanceof ProviderError && error.status >= 400 && error.status < 500 ? "failed" : "reconciliation_required";
-        const safe = error instanceof ProviderError || error instanceof ReconciliationRequired || error instanceof ReviewRequired ? error.message
-          : "Publishing or authorization outcome is uncertain. Review the provider account and saved identifiers before any repeat.";
-        await db.update(queue).set({ status, error: safe, retryAt: status === "retry" ? new Date(Date.now() + Math.min(86400000, 60000 * 2 ** Math.min(work.attempts, 10))) : null, updatedAt: new Date() }).where(eq(queue.id, work.id));
-        logger.warn({ entryId: work.id, status }, "Publishing paused or rejected");
+        await recordPublishFailure(work, error);
       }
     }
   } finally {
     if (acquired) await connection.query("SELECT pg_advisory_unlock(74004,0)").catch(() => {});
     connection.release();
   }
+}
+export async function recordPublishFailure(work: PublishWork, error: unknown) {
+  // Re-read durable effects, including a response saved immediately before a crash.
+  const [latest] = await db.select().from(queue).where(eq(queue.id, work.id));
+  const ambiguous = Object.entries(latest?.checkpoint ?? {}).some(([key, value]) =>
+    key.startsWith("effect:") && (value as { state?: string } | null)?.state === "started");
+  const authBlocked = /authorization|Reconnect|configuration is missing/i.test(error instanceof Error ? error.message : "");
+  const retry = nextFailure(latest?.attempts ?? work.attempts, new Date(), error instanceof ProviderError ? error.notBefore : null);
+  const permanent = error instanceof ProviderError && error.status >= 400 && error.status < 500 && error.status !== 429;
+  const status = error instanceof ReviewRequired ? "needs_review"
+    : error instanceof ReconciliationRequired || ambiguous ? "reconciliation_required"
+    : authBlocked ? "blocked" : permanent ? "failed" : retry.status;
+  const failureKind = status === "needs_review" ? "consent_required" : status === "blocked" ? "access_blocked"
+    : status === "reconciliation_required" ? "uncertain_publish" : permanent ? "permanent"
+    : error instanceof ProviderError && error.status === 429 ? "rate_limited"
+    : status === "failed" ? "retry_exhausted" : "transient";
+  const safe = redactError(error);
+  const attempts = ["needs_review", "reconciliation_required", "blocked"].includes(status) ? latest?.attempts ?? work.attempts : retry.count;
+  await db.update(queue).set({ status, attempts, failureKind, error: safe, retryAt: status === "retry" ? retry.retryAt : error instanceof ProviderError ? error.notBefore : null, updatedAt: new Date() }).where(eq(queue.id, work.id));
+  logger.warn({ entryId: work.id, status, failureKind, failures: attempts, retryAt: status === "retry" ? retry.retryAt : null, error: safe }, "Publishing paused or rejected");
 }
 export function startPublisher(readiness = pollReadiness(150000)) {
   let stopping = false;

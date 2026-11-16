@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:autopilot": "tsx --test ../artifacts/api-server/src/tests/*.test.ts",
+    "test:autopilot": "tsx --test --test-concurrency=1 ../artifacts/api-server/src/tests/*.test.ts",
     "hello": "tsx ./src/hello.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

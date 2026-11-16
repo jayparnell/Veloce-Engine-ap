@@ -5,6 +5,24 @@
  * Veloce Engine content production API
  * OpenAPI spec version: 1.0.0
  */
+export interface RenderCapInput {
+  /**
+     * @minimum 0
+     * @maximum 1000
+     */
+  dailyRenderCap: number;
+}
+
+export interface RenderBudget {
+  dailyRenderCap: number;
+  completed: number;
+  reserved: number;
+  remaining: number;
+  resetAt: string;
+  resetTimezone: string;
+  pausedJobs: number;
+}
+
 export interface PublishingReview {
   title: string;
   caption: string;
@@ -124,6 +142,11 @@ export interface SwarmJob {
   language: string;
   /** @nullable */
   error?: string | null;
+  failures?: number;
+  /** @nullable */
+  failureKind?: string | null;
+  /** @nullable */
+  retryAt?: string | null;
   notice: string;
   createdAt: string;
   clips: SwarmClip[];
@@ -167,6 +190,11 @@ export interface PublishEntry {
   remoteId?: string | null;
   /** @nullable */
   error?: string | null;
+  attempts?: number;
+  /** @nullable */
+  failureKind?: string | null;
+  /** @nullable */
+  retryAt?: string | null;
 }
 
 export interface SlotPreset {

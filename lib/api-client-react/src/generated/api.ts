@@ -52,6 +52,8 @@ import type {
   ProjectInput,
   PublishingApproval,
   PublishingReview,
+  RenderBudget,
+  RenderCapInput,
   Schedule,
   ScheduleInput,
   SocialIntegration,
@@ -90,6 +92,183 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetRenderBudgetUrl = () => {
+
+
+
+
+  return `/api/autopilot/render-budget`
+}
+
+export const getRenderBudget = async ( options?: Parameters<typeof customFetch>[1]): Promise<RenderBudget> => {
+
+  return customFetch<RenderBudget>(getGetRenderBudgetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRenderBudgetQueryKey = () => {
+    return [
+    `/api/autopilot/render-budget`
+    ] as const;
+    }
+
+
+export const getGetRenderBudgetQueryOptions = <TData = Awaited<ReturnType<typeof getRenderBudget>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRenderBudget>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRenderBudgetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRenderBudget>>> = ({ signal }) => getRenderBudget({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRenderBudget>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetRenderBudgetQueryResult = NonNullable<Awaited<ReturnType<typeof getRenderBudget>>>
+export type GetRenderBudgetQueryError = ErrorType<unknown>
+
+
+export function useGetRenderBudget<TData = Awaited<ReturnType<typeof getRenderBudget>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRenderBudget>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRenderBudget>>,
+          TError,
+          Awaited<ReturnType<typeof getRenderBudget>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRenderBudget<TData = Awaited<ReturnType<typeof getRenderBudget>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRenderBudget>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRenderBudget>>,
+          TError,
+          Awaited<ReturnType<typeof getRenderBudget>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRenderBudget<TData = Awaited<ReturnType<typeof getRenderBudget>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRenderBudget>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetRenderBudget<TData = Awaited<ReturnType<typeof getRenderBudget>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRenderBudget>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetRenderBudgetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateRenderBudgetUrl = () => {
+
+
+
+
+  return `/api/autopilot/render-budget`
+}
+
+export const updateRenderBudget = async (renderCapInput: RenderCapInput, options?: Parameters<typeof customFetch>[1]): Promise<RenderBudget> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<RenderBudget>(getUpdateRenderBudgetUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(renderCapInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateRenderBudgetMutationKey = () => ['updateRenderBudget'] as const;
+
+export const getUpdateRenderBudgetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRenderBudget>>, TError,UpdateRenderBudgetMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateRenderBudget>>, TError,UpdateRenderBudgetMutationVariables, TContext> => {
+
+const mutationKey = getUpdateRenderBudgetMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateRenderBudget>>, UpdateRenderBudgetMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateRenderBudget(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateRenderBudgetMutationResult = NonNullable<Awaited<ReturnType<typeof updateRenderBudget>>>
+    export type UpdateRenderBudgetMutationBody = BodyType<RenderCapInput>
+    export type UpdateRenderBudgetMutationError = ErrorType<void>
+    export type UpdateRenderBudgetMutationVariables = {data: BodyType<RenderCapInput>}
+
+    export const useUpdateRenderBudget = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRenderBudget>>, TError,UpdateRenderBudgetMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateRenderBudget>>,
+        TError,
+        UpdateRenderBudgetMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateRenderBudgetMutationOptions(options), queryClient);
+    }
 
 export const getGetPublishingReviewUrl = (id: number,) => {
 

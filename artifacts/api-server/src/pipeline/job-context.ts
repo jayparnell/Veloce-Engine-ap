@@ -6,7 +6,9 @@ import { logger } from "../lib/logger";
 
 export class UncertainCallError extends Error {}
 export class JobStoppedError extends Error {}
-export class AIRequestRejectedError extends Error {}
+export class AIRequestRejectedError extends Error {
+  constructor(message: string, public status = 400, public notBefore: Date | null = null) { super(message); }
+}
 export const jobContext = new AsyncLocalStorage<JobContext>();
 export class JobContext {
   readonly abort = new AbortController();
@@ -49,13 +51,16 @@ export class JobContext {
       return result;
     } catch (error) {
       if (error instanceof JobStoppedError) throw error;
-      const detail = error as { status?: unknown; code?: unknown };
+      const detail = error as { status?: unknown; code?: unknown; headers?: Headers };
       logger.warn({ jobId: this.job.id, callKey: key, errorName: error instanceof Error ? error.name : "Unknown",
         httpStatus: typeof detail.status === "number" ? detail.status : undefined,
         providerCode: typeof detail.code === "string" && /^[a-z0-9_]{1,80}$/i.test(detail.code) ? detail.code : undefined }, "AI checkpoint did not obtain a durable result");
       if (typeof detail.status === "number" && [400, 401, 403, 404, 422, 429].includes(detail.status)) {
         await db.delete(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, this.job.id), eq(aiCheckpointsTable.callKey, key), eq(aiCheckpointsTable.status, "started")));
-        throw new AIRequestRejectedError(`AI provider rejected the request (HTTP ${detail.status}). ${detail.status === 429 ? "Rate or credit limit reached; retry after the provider permits it." : "Check integrated AI availability and request compatibility."} Saved results were preserved.`);
+        const after = detail.headers?.get?.("retry-after");
+        const notBefore = after ? new Date(/^\d+(\.\d+)?$/.test(after) ? Date.now() + Number(after) * 1000 : after) : null;
+        throw new AIRequestRejectedError(`AI provider rejected the request (HTTP ${detail.status}). ${detail.status === 429 ? "Rate or credit limit reached; retry after the provider permits it." : "Check integrated AI availability and request compatibility."} Saved results were preserved.`,
+          detail.status, notBefore && Number.isFinite(notBefore.getTime()) ? notBefore : null);
       }
       throw new UncertainCallError("AI request outcome is uncertain. No automatic repeat was made. Review possible usage, then acknowledge to retry the unfinished request.");
     }

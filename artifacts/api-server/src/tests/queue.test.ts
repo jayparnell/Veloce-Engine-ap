@@ -1,19 +1,24 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { test, after } from "node:test";
+import { test, before, after } from "node:test";
 import { db, pool, projectsTable, autopilotJobsTable as jobs, aiCheckpointsTable, socialAccountsTable, socialConfigsTable, generatedClipsTable, publishQueueTable, autopilotAdmissionsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { runSlot, GLOBAL_SOURCE_LIMIT } from "../pipeline/worker";
 import { JobContext, UncertainCallError, AIRequestRejectedError } from "../pipeline/job-context";
 import { assignReadyClips } from "../publishing/allocator";
 import { autopilotUsage } from "../lib/autopilotQuota";
+import { setRenderCap } from "../lib/render-budget";
 
 const owner = `user:queue-test-${randomUUID()}`;
+// This fixture verifies the five-worker limit, not the default three-source budget.
+before(() => setRenderCap(owner, 100));
 after(async () => {
   await db.delete(socialAccountsTable).where(eq(socialAccountsTable.ownerId, owner));
   await db.delete(socialConfigsTable).where(eq(socialConfigsTable.ownerId, owner));
   await db.delete(projectsTable).where(eq(projectsTable.ownerId, owner));
   await db.delete(autopilotAdmissionsTable).where(eq(autopilotAdmissionsTable.ownerId, owner));
+  await pool.query("DELETE FROM render_reservations WHERE owner_id=$1", [owner]);
+  await pool.query("DELETE FROM automation_settings WHERE owner_id=$1", [owner]);
   await pool.end();
 });
 async function createJob(requestKey = randomUUID()) {

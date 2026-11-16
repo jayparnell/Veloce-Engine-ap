@@ -1,21 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { db, pool, autopilotJobsTable as jobs, projectsTable, workerServicesTable } from "@workspace/db";
+import { db, pool, autopilotJobsTable as jobs, projectsTable, workerServicesTable, aiCheckpointsTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { runAutopilot } from "./autopilot-process";
 import { JobContext, jobContext, JobStoppedError, UncertainCallError, AIRequestRejectedError } from "./job-context";
-import { SourceIngestionError } from "./ingestion";
 import { startPollLoop, type PollObserver } from "../lib/poll-loop";
+import { reserveOutputs, releaseOutputs, RenderBudgetPaused } from "../lib/render-budget";
+import { redactError, nextFailure, permanentMediaFailure } from "../lib/failure-policy";
 
 export const GLOBAL_SOURCE_LIMIT = 5;
 const running = new Set<Promise<void>>();
 const localSlots = new Set<number>();
 let stopping = false;
-const safeError = (error: unknown) => error instanceof SourceIngestionError || error instanceof UncertainCallError || error instanceof AIRequestRejectedError
-  ? error.message.slice(0, 1800)
-  : error instanceof Error && /^(Source |No |The rendered|Voiceover |Processing |You do not|Upload )/.test(error.message)
-    ? error.message.slice(0, 500)
-    : "Media processing failed. Saved results and completed clips were preserved; check source access and retry.";
 
 export async function serviceHeartbeat(name: string) {
   await db.insert(workerServicesTable).values({ name, heartbeatAt: new Date() })
@@ -32,7 +28,8 @@ export async function runSlot(slot: number, run = runAutopilot, onlyOwner: strin
     const token = randomUUID();
     const claimed = await connection.query(`UPDATE autopilot_jobs SET status='processing', lease_token=$1, lease_until=now()+interval '3 minutes', updated_at=now()
       WHERE id=(SELECT id FROM autopilot_jobs WHERE cancel_requested=false AND ($2::text IS NULL OR owner_id=$2) AND
-      (status='queued' OR (status='processing' AND lease_until < now())) ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`, [token, onlyOwner]);
+      ((status IN ('queued','retry','budget_paused') AND (retry_at IS NULL OR retry_at<=now()))
+        OR (status='processing' AND lease_until < now())) ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`, [token, onlyOwner]);
     if (!claimed.rows.length) return;
     const id = Number(claimed.rows[0].id);
     const [job] = await db.select().from(jobs).where(eq(jobs.id, id));
@@ -43,15 +40,38 @@ export async function runSlot(slot: number, run = runAutopilot, onlyOwner: strin
         .then((rows) => { if (!rows.length) ctx.abort.abort(); }).catch(() => ctx.abort.abort());
     }, 10000);
     try {
+      const [unfinished] = await db.select().from(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, id), eq(aiCheckpointsTable.status, "started"))).limit(1);
+      if (unfinished) throw new UncertainCallError("An unfinished AI request may have been billed. Review and acknowledge before retrying; no new paid work was started.");
+      await reserveOutputs(job!.ownerId, id, job!.originalClipId ? 1 : (job!.checkpoint.moments as unknown[] | undefined)?.length ?? 5, token);
       await jobContext.run(ctx, () => run(ctx, connection));
-      await ctx.update({ status: "completed", progress: 100, stage: "ready", error: null });
+      await ctx.update({ status: "completed", progress: 100, stage: "ready", error: null, retryAt: null, failureKind: null });
+      await releaseOutputs(job!.ownerId, id);
       if (!job!.originalClipId) await db.update(projectsTable).set({ status: "completed", stage: 5, progress: 100, error: null, updatedAt: new Date() }).where(eq(projectsTable.id, job!.projectId));
     } catch (error) {
       const [current] = await db.select().from(jobs).where(eq(jobs.id, id));
-      const status = current?.cancelRequested ? "cancelled" : error instanceof UncertainCallError ? "uncertain" : error instanceof JobStoppedError || ctx.abort.signal.aborted ? "queued" : "failed";
-      const changed = await db.update(jobs).set({ status, error: status === "cancelled" ? "Cancelled. Completed clips and saved AI results are preserved." : safeError(error), updatedAt: new Date() }).where(and(eq(jobs.id, id), eq(jobs.leaseToken, token))).returning({ id: jobs.id });
-      if (changed.length && !job!.originalClipId) await db.update(projectsTable).set({ status, error: safeError(error), updatedAt: new Date() }).where(eq(projectsTable.id, job!.projectId));
-      logger.warn({ jobId: id, status, errorName: error instanceof Error ? error.name : "Unknown" }, "Autopilot job stopped");
+      const [pendingAI] = await db.select().from(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, id), eq(aiCheckpointsTable.status, "started"))).limit(1);
+      const retry = nextFailure(current?.failures ?? 0, new Date(), error instanceof AIRequestRejectedError ? error.notBefore : null);
+      const stopped = error instanceof JobStoppedError || ctx.abort.signal.aborted;
+      const status = current?.cancelRequested ? "cancelled"
+        : error instanceof UncertainCallError || pendingAI ? "uncertain"
+        : stopped ? "queued" : error instanceof RenderBudgetPaused ? "budget_paused"
+        : error instanceof AIRequestRejectedError && error.status !== 429 || permanentMediaFailure(error) ? "failed" : retry.status;
+      const failureKind = status === "uncertain" || pendingAI ? "uncertain_ai" : status === "budget_paused" ? "daily_cap"
+        : error instanceof AIRequestRejectedError && error.status === 429 ? "rate_limited"
+        : status === "failed" && retry.count < 2 ? "permanent" : status === "failed" ? "retry_exhausted" : "transient";
+      const message = redactError(status === "uncertain" && !(error instanceof UncertainCallError)
+        ? new UncertainCallError("An unfinished AI request may have been billed. Review and acknowledge before retrying; completed results are preserved.")
+        : error);
+      const retryAt = status === "budget_paused" ? (error as RenderBudgetPaused).resetAt : status === "retry" ? retry.retryAt
+        : error instanceof AIRequestRejectedError && error.status === 429 ? error.notBefore : null;
+      const counted = !["cancelled", "uncertain", "queued", "budget_paused"].includes(status);
+      const changed = await db.update(jobs).set({ status, failureKind, retryAt, failures: counted ? retry.count : current?.failures ?? 0,
+        error: status === "cancelled" ? "Cancelled. Completed clips and saved AI results are preserved." : message, updatedAt: new Date() })
+        .where(and(eq(jobs.id, id), eq(jobs.leaseToken, token))).returning({ id: jobs.id });
+      if (changed.length && ["failed", "cancelled"].includes(status)) await releaseOutputs(job!.ownerId, id);
+      if (changed.length && !job!.originalClipId) await db.update(projectsTable).set({ status, error: message, updatedAt: new Date() }).where(eq(projectsTable.id, job!.projectId));
+      if (changed.length) logger.warn({ jobId: id, status, failureKind, failures: counted ? retry.count : current?.failures, retryAt, error: message }, "Autopilot job stopped");
+      else logger.info({ jobId: id, status: "lease_lost", error: message }, "Superseded media worker did not change job state");
     } finally {
       clearInterval(heartbeat);
       await db.update(jobs).set({ leaseUntil: null, leaseToken: null }).where(and(eq(jobs.id, id), eq(jobs.leaseToken, token)));
@@ -80,7 +100,9 @@ export function startPipelineWorker(observer?: PollObserver) {
     if (stopping) return;
     // Finish cancellations left queued or interrupted by a process crash.
     await db.execute(sql`UPDATE autopilot_jobs SET status='cancelled',lease_token=NULL,lease_until=NULL
-      WHERE cancel_requested=true AND (status='queued' OR (status='processing' AND (lease_until < now() OR lease_until IS NULL)))`);
+      WHERE cancel_requested=true AND (status IN ('queued','retry','budget_paused') OR (status='processing' AND (lease_until < now() OR lease_until IS NULL)))`);
+    await db.execute(sql`DELETE FROM render_reservations r WHERE r.completed_at IS NULL
+      AND NOT EXISTS (SELECT 1 FROM autopilot_jobs j WHERE j.id=r.job_id AND j.status NOT IN ('failed','cancelled','completed'))`);
     for (let slot = 0; slot < GLOBAL_SOURCE_LIMIT; slot++) {
       if (stopping) break;
       if (running.size >= GLOBAL_SOURCE_LIMIT) break;

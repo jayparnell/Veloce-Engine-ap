@@ -28,6 +28,9 @@ export const autopilotJobsTable = pgTable("autopilot_jobs", {
   checkpoint: jsonb("checkpoint").$type<Checkpoint>().notNull().default({}),
   notice: text("notice").notNull().default(""),
   error: text("error"),
+  failures: integer("failures").notNull().default(0),
+  retryAt: timestamp("retry_at", { withTimezone: true }),
+  failureKind: text("failure_kind"),
   leaseToken: text("lease_token"),
   leaseUntil: timestamp("lease_until", { withTimezone: true }),
   cancelRequested: boolean("cancel_requested").notNull().default(false),
@@ -38,6 +41,7 @@ export const autopilotJobsTable = pgTable("autopilot_jobs", {
   index("autopilot_project").on(t.projectId),
   index("autopilot_owner_recent").on(t.ownerId, t.id),
   index("autopilot_claim").on(t.status, t.leaseUntil, t.id).where(sql`${t.status} IN ('queued','processing') AND ${t.cancelRequested}=false`),
+  index("autopilot_retry_claim").on(t.status, t.retryAt, t.id).where(sql`${t.cancelRequested}=false AND ${t.status} IN ('queued','retry','budget_paused')`),
 ]);
 
 // A started call without a stored result is ambiguous: never automatically repeat it.
@@ -80,6 +84,8 @@ export const publishQueueTable = pgTable("autopilot_publish_queue", {
   remoteId: text("remote_id"),
   checkpoint: jsonb("checkpoint").$type<Checkpoint>().notNull().default({}),
   attempts: integer("attempts").notNull().default(0),
+  failureCountVersion: integer("failure_count_version").notNull().default(1),
+  failureKind: text("failure_kind"),
   retryAt: timestamp("retry_at", { withTimezone: true }),
   error: text("error"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -92,6 +98,18 @@ export const workerServicesTable = pgTable("autopilot_services", {
   name: text("name").primaryKey(),
   heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }).notNull().defaultNow(),
 });
+export const automationSettingsTable = pgTable("automation_settings", {
+  ownerId: text("owner_id").primaryKey(),
+  dailyRenderCap: integer("daily_render_cap").notNull().default(15),
+});
+// No media foreign keys: deleting media must not refund completed output usage.
+export const renderReservationsTable = pgTable("render_reservations", {
+  outputKey: text("output_key").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  jobId: integer("job_id"),
+  momentIndex: integer("moment_index"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => [index("render_owner").on(t.ownerId)]);
 export const insertAutopilotJobSchema = createInsertSchema(autopilotJobsTable);
 export const insertSocialAccountSchema = createInsertSchema(socialAccountsTable);
 export type AutopilotJob = typeof autopilotJobsTable.$inferSelect;

@@ -13,6 +13,7 @@ import { transcribeSource, synthesizeVoiceover } from "./audio";
 import { ingestVod, sourceToolError, SourceIngestionError, MAX_REMOTE_BYTES } from "./ingestion";
 import { jobContext } from "./job-context";
 import { workspaceRoot as root, mediaPython as python, mediaRenderer as worker } from "./paths";
+import { redactError } from "../lib/failure-policy";
 
 const workRoot = join(root, "generated-artifacts", "media-work");
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -41,7 +42,7 @@ export function command(executable: string, args: string[], timeout = 300000): P
       if (code === 0) resolveOutput(out);
       else {
         if (executable === "yt-dlp") { reject(new SourceIngestionError(sourceToolError(error))); return; }
-        let message = `Media tool failed (${code}). The source may be unsupported or missing audio.`;
+        let message = `Media tool failed (${code}): ${redactError(new Error(error.trim() || "No diagnostic output."))}`;
         if (error.includes("Source duration must")) message = "Source must be between 30 seconds and 60 minutes long. Upload a supported MP4 and retry.";
         if (error.includes("Source video must contain")) message = "Source video must contain an audible audio track.";
         if (error.includes("Voiceover is too long")) message = "Voiceover is too long for this clip. Retry this batch for a shorter commentary.";

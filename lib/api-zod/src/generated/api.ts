@@ -8,6 +8,38 @@
 import * as zod from 'zod';
 
 
+export const GetRenderBudgetResponse = zod.object({
+  "dailyRenderCap": zod.number().int(),
+  "completed": zod.number().int(),
+  "reserved": zod.number().int(),
+  "remaining": zod.number().int(),
+  "resetAt": zod.coerce.date(),
+  "resetTimezone": zod.string(),
+  "pausedJobs": zod.number().int()
+})
+
+
+export const updateRenderBudgetBodyDailyRenderCapDefault = 15;
+export const updateRenderBudgetBodyDailyRenderCapMin = 0;
+export const updateRenderBudgetBodyDailyRenderCapMax = 1000;
+
+
+
+export const UpdateRenderBudgetBody = zod.object({
+  "dailyRenderCap": zod.number().int().min(updateRenderBudgetBodyDailyRenderCapMin).max(updateRenderBudgetBodyDailyRenderCapMax).default(updateRenderBudgetBodyDailyRenderCapDefault)
+})
+
+export const UpdateRenderBudgetResponse = zod.object({
+  "dailyRenderCap": zod.number().int(),
+  "completed": zod.number().int(),
+  "reserved": zod.number().int(),
+  "remaining": zod.number().int(),
+  "resetAt": zod.coerce.date(),
+  "resetTimezone": zod.string(),
+  "pausedJobs": zod.number().int()
+})
+
+
 export const GetPublishingReviewParams = zod.object({
   "id": zod.coerce.number().int()
 })
@@ -79,6 +111,9 @@ export const GetAutopilotSwarmResponseItem = zod.object({
   "progress": zod.number(),
   "language": zod.string(),
   "error": zod.string().nullish(),
+  "failures": zod.number().int().optional(),
+  "failureKind": zod.string().nullish(),
+  "retryAt": zod.coerce.date().nullish(),
   "notice": zod.string(),
   "createdAt": zod.coerce.date(),
   "clips": zod.array(zod.object({
@@ -229,7 +264,10 @@ export const GetAutopilotScheduleResponse = zod.object({
   "language": zod.string(),
   "status": zod.string(),
   "remoteId": zod.string().nullish(),
-  "error": zod.string().nullish()
+  "error": zod.string().nullish(),
+  "attempts": zod.number().int().optional(),
+  "failureKind": zod.string().nullish(),
+  "retryAt": zod.coerce.date().nullish()
 })),
   "presets": zod.array(zod.object({
   "platform": zod.string(),

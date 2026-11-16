@@ -6,6 +6,29 @@ info:
 servers:
   - url: /api
 paths:
+  /autopilot/render-budget:
+    get:
+      operationId: getRenderBudget
+      responses:
+        "200":
+          description: Owner clip budget and fixed EST reset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RenderBudget" }
+    patch:
+      operationId: updateRenderBudget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RenderCapInput" }
+      responses:
+        "200":
+          description: Owner daily cap saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RenderBudget" }
+        "409": { description: New cap is below completed plus reserved clips }
   /autopilot/publish/{id}/review:
     parameters:
       - { name: id, in: path, required: true, schema: { type: integer } }
@@ -466,6 +489,22 @@ paths:
               schema: { type: object, additionalProperties: true }
 components:
   schemas:
+    RenderCapInput:
+      type: object
+      required: [dailyRenderCap]
+      properties:
+        dailyRenderCap: { type: integer, minimum: 0, maximum: 1000, default: 15 }
+    RenderBudget:
+      type: object
+      required: [dailyRenderCap, completed, reserved, remaining, resetAt, resetTimezone, pausedJobs]
+      properties:
+        dailyRenderCap: { type: integer }
+        completed: { type: integer }
+        reserved: { type: integer }
+        remaining: { type: integer }
+        resetAt: { type: string, format: date-time }
+        resetTimezone: { type: string }
+        pausedJobs: { type: integer }
     PublishingReview:
       type: object
       required: [title, caption, videoUrl, creatorName, privacyOptions, commentDisabled, duetDisabled, stitchDisabled, maxDuration, canPost]
@@ -539,6 +578,9 @@ components:
         progress: { type: number }
         language: { type: string }
         error: { type: ["string", "null"] }
+        failures: { type: integer }
+        failureKind: { type: ["string", "null"] }
+        retryAt: { type: ["string", "null"], format: date-time }
         notice: { type: string }
         createdAt: { type: string, format: date-time }
         clips: { type: array, items: { $ref: "#/components/schemas/SwarmClip" } }
@@ -579,6 +621,9 @@ components:
         status: { type: string }
         remoteId: { type: ["string", "null"] }
         error: { type: ["string", "null"] }
+        attempts: { type: integer }
+        failureKind: { type: ["string", "null"] }
+        retryAt: { type: ["string", "null"], format: date-time }
     AutopilotSchedule:
       type: object
       required: [entries, presets, serviceMessage, workerRunning, publisherRunning]

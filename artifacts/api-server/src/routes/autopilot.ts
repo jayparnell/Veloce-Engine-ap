@@ -8,6 +8,9 @@ import { validSource } from "./studio";
 import { PRESETS, validTimezone } from "../publishing/slots";
 import { assignReadyClips } from "../publishing/allocator";
 import { autopilotUsage } from "../lib/autopilotQuota";
+import { budgetTransaction, budgetStatus, setRenderCap, RenderCapConflict } from "../lib/render-budget";
+import { GetRenderBudgetResponse, UpdateRenderBudgetBody, UpdateRenderBudgetResponse } from "@workspace/api-zod";
+import { redactError } from "../lib/failure-policy";
 
 const router: IRouter = Router();
 router.use("/autopilot", (req, res, next) => {
@@ -17,6 +20,15 @@ router.use("/autopilot", (req, res, next) => {
 });
 const digest = (data: unknown) => createHash("sha256").update(JSON.stringify(data)).digest("hex");
 class InputError extends Error { constructor(message: string, public code = 400) { super(message); } }
+router.get("/autopilot/render-budget", async (req, res): Promise<void> => {
+  res.json(GetRenderBudgetResponse.parse(await budgetTransaction(req.workspaceId, (c) => budgetStatus(c, req.workspaceId))));
+});
+router.patch("/autopilot/render-budget", async (req, res): Promise<void> => {
+  const input = UpdateRenderBudgetBody.safeParse(req.body);
+  if (!input.success) { res.status(400).json({ error: "Daily Render Cap must be a whole number from 0 to 1000." }); return; }
+  try { res.json(UpdateRenderBudgetResponse.parse(await setRenderCap(req.workspaceId, input.data.dailyRenderCap))); }
+  catch (error) { if (!(error instanceof RenderCapConflict)) throw error; res.status(409).json({ error: error.message }); }
+});
 router.post("/autopilot/launch", async (req, res): Promise<void> => {
   const start = performance.now();
   const input = LaunchAutopilotBody.safeParse(req.body);
@@ -62,13 +74,13 @@ router.post("/autopilot/launch", async (req, res): Promise<void> => {
 });
 router.get("/autopilot/swarm", async (req, res): Promise<void> => {
   // Keep every active job visible, even when an older uncertain source predates the recent history.
-  const rows = await db.select({ job: jobs, project: projectsTable }).from(jobs).innerJoin(projectsTable, eq(jobs.projectId, projectsTable.id)).where(eq(jobs.ownerId, req.workspaceId)).orderBy(sql`CASE WHEN ${jobs.status} IN ('queued','processing','uncertain') THEN 0 ELSE 1 END`, desc(jobs.id)).limit(110);
+   const rows = await db.select({ job: jobs, project: projectsTable }).from(jobs).innerJoin(projectsTable, eq(jobs.projectId, projectsTable.id)).where(eq(jobs.ownerId, req.workspaceId)).orderBy(sql`CASE WHEN ${jobs.status} IN ('queued','processing','uncertain','retry','budget_paused') THEN 0 ELSE 1 END`, desc(jobs.id)).limit(110);
   const ready = rows.length ? await db.select().from(clips).where(and(eq(clips.ownerId, req.workspaceId), inArray(clips.jobId, rows.map(({ job }) => job.id)))) : [];
   res.json(GetAutopilotSwarmResponse.parse(rows.map(({ job, project }) => {
     const done = ready.filter((c) => c.jobId === job.id);
     const moments = job.checkpoint.moments as unknown[] | undefined;
     const count = job.originalClipId ? 1 : moments?.length ?? project.clipCount;
-    return { ...job, sourceUrl: project.sourceUrl, title: project.title, createdAt: job.createdAt.toISOString(),
+     return { ...job, error: job.error ? redactError(new Error(job.error)) : null, retryAt: job.retryAt?.toISOString() ?? null, sourceUrl: project.sourceUrl, title: project.title, createdAt: job.createdAt.toISOString(),
       clips: Array.from({ length: count }, (_, index) => {
         const clip = done.find((c) => c.momentIndex === index);
         return { index, language: job.language, status: clip ? "ready" : job.checkpoint[`clip:${index}:status`] ?? (job.status === "processing" ? "waiting" : job.status),
@@ -88,11 +100,14 @@ router.post("/autopilot/jobs/:id/action", async (req, res): Promise<void> => {
       await tx.update(jobs).set({ cancelRequested: true, ...(job.status !== "processing" ? { status: "cancelled" } : {}) }).where(eq(jobs.id, job.id));
     } else {
       if (!["failed", "cancelled", "uncertain"].includes(job.status) || (job.leaseUntil && job.leaseUntil > new Date())) return { code: 409, message: "Wait for this worker to stop before retrying." };
+       if (job.retryAt && job.retryAt > new Date()) return { code: 409, message: `Provider restrictions prevent a repeat before ${job.retryAt.toISOString()}.` };
       if (job.status === "uncertain" && input.data.action !== "acknowledge-uncertain") return { code: 409, message: "Acknowledge possible previous AI usage before repeating unfinished calls." };
+       const [unfinished] = await tx.select().from(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, job.id), eq(aiCheckpointsTable.status, "started"))).limit(1);
+       if (unfinished && input.data.action !== "acknowledge-uncertain") return { code: 409, message: "A cancelled or failed job still has an uncertain AI request. Acknowledge possible usage before repeating it." };
       const usage = await tx.execute(autopilotUsage(req.workspaceId));
       if (job.status !== "uncertain" && Number(usage.rows[0]?.active) >= 10) return { code: 429, message: "Ten jobs are already active. Wait before reactivating another source." };
       if (input.data.action === "acknowledge-uncertain") await tx.delete(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, job.id), eq(aiCheckpointsTable.status, "started")));
-      await tx.update(jobs).set({ status: "queued", error: null, cancelRequested: false, leaseToken: null, leaseUntil: null }).where(eq(jobs.id, job.id));
+       await tx.update(jobs).set({ status: "queued", error: null, retryAt: null, failureKind: null, cancelRequested: false, leaseToken: null, leaseUntil: null }).where(eq(jobs.id, job.id));
     }
     return { code: 200, message: input.data.action === "cancel" ? "Cancellation requested. Completed clips are preserved." : "Job queued with saved results. Unfinished acknowledged AI calls may incur new usage." };
   });
@@ -149,7 +164,7 @@ router.get("/autopilot/schedule", async (req, res): Promise<void> => {
   ]);
   const running = (name: string) => services.some((s) => s.name === name && Date.now() - s.heartbeatAt.getTime() < 90000);
   res.json(GetAutopilotScheduleResponse.parse({
-    entries: entries.map(({ work, clip, account }) => ({ ...work, title: clip.title, language: clip.language, platform: account.platform, handle: account.handle, scheduledAt: work.scheduledAt.toISOString() })),
+     entries: entries.map(({ work, clip, account }) => ({ ...work, error: work.error ? redactError(new Error(work.error)) : null, retryAt: work.retryAt?.toISOString() ?? null, title: clip.title, language: clip.language, platform: account.platform, handle: account.handle, scheduledAt: work.scheduledAt.toISOString() })),
     presets: PRESETS, workerRunning: running("media"), publisherRunning: running("publisher"),
     serviceMessage: "Publishing checks due work every 60 seconds only while the dedicated service is running. Sleep or stopped services delay posts. Presets are configurable, not performance claims. Existing reservations keep their original timezone and instant.",
   }));

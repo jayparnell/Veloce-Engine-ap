@@ -18,6 +18,11 @@ export interface SwarmJob {
   language: string;
   /** @nullable */
   error?: string | null;
+  failures?: number;
+  /** @nullable */
+  failureKind?: string | null;
+  /** @nullable */
+  retryAt?: Date | null;
   notice: string;
   createdAt: Date;
   clips: SwarmClip[];

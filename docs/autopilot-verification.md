@@ -1,3 +1,14 @@
+# Daily render cap and bounded retries
+
+- `pnpm --filter @workspace/scripts run test:autopilot` runs the full TypeScript suite serially: PostgreSQL advisory locks are database-wide even across isolated schemas.
+- `pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/tests/guardrails.test.ts` exercises real transactions in a temporary schema and drops it afterward. No AI, downloads or social posts are performed.
+- Guardrail fixtures cover parallel multi-source and variant reservations, completed/reserved/remaining counts, fixed UTC-05:00 reset boundaries in summer/winter, carry-over outstanding work, partial completion, deletion-resistant receipts, atomic output commits, stale-lease fencing, zero caps, persisted cap edits, owner boundaries, 60-second one-retry limits, provider Retry-After, nonblocking queue progress, checkpoint reuse and uncertain-effect holds.
+- Additive migrations backfill existing real outputs without deleting media. The migration runner applies both migrations; rerunning preserves retry counters and output receipts.
+- Sources reserve their maximum five-output plan before any paid analysis, then release unused slots after plan validation. This can pause a source when fewer than five slots remain, even if analysis might later select only three. Each ES/PT variant reserves one additional output. Outstanding reservations carry over midnight; successful output receipts count on their actual completion day.
+- Default cap: 15 clips per owner per fixed-EST calendar day. `0` pauses new paid work. Cap edits cannot undercut today's completed plus outstanding reserved outputs. The separate 10-active / 20-job rolling daily safety quotas and all IANA posting slots remain unchanged.
+- Safely repeatable failures persist one retry at least 60 seconds later; a second failure becomes terminal `failed`. Healthy provider processing polls are not failed attempts. Permanent validation/access failures, consent requirements, uncertain AI billing and ambiguous publishing remain distinct holds rather than blanket retries. Error details are credential-redacted before database persistence, structured logging and API display.
+- Signed-in cap controls are available in Command Center and Distribution. Failure cards expose retry eligibility and corrective actions. A clip cap is not an exact monetary or AI-credit cap; failed work and explicit acknowledgment of uncertain calls may still incur usage.
+
 # Paste-and-Launch Autopilot: operation and verification
 
 ## Operating contract

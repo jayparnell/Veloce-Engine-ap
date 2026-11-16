@@ -33,13 +33,18 @@ export async function readJson(response: Response) {
   const text = await response.text();
   let data: Record<string, any>;
   try { data = text ? JSON.parse(text) : {}; }
-  catch { throw new ProviderError(response.status, "Provider returned an invalid response. Reconcile any in-flight publishing attempt."); }
+  catch { throw new ProviderError(response.status, "Provider returned an invalid response. Reconcile any in-flight publishing attempt.", retryAfter(response.headers.get("retry-after"))); }
   const code = String(data.error?.code ?? "");
   const status = /rate_limit|quota/i.test(code) ? 429 : /access_token|scope|auth/i.test(code) ? 403 : response.ok && (data.error && code !== "ok" || data.errors) ? 400 : response.status;
-  if (!response.ok || data.error && code !== "ok" || data.errors) throw new ProviderError(status, status === 429 ? "Provider quota or rate limit reached." : status === 401 || status === 403 ? "Provider rejected authorization or posting permissions. Reconnect or obtain approval." : "Provider rejected the request. Check format, account eligibility and application approval.");
+  if (!response.ok || data.error && code !== "ok" || data.errors) throw new ProviderError(status, status === 429 ? "Provider quota or rate limit reached." : status === 401 || status === 403 ? "Provider rejected authorization or posting permissions. Reconnect or obtain approval." : "Provider rejected the request. Check format, account eligibility and application approval.", retryAfter(response.headers.get("retry-after")));
   return data;
 }
-export class ProviderError extends Error { constructor(public status: number, message: string) { super(message); } }
+export function retryAfter(value: string | null, now = Date.now()): Date | null {
+  if (!value) return null;
+  const time = /^\d+(\.\d+)?$/.test(value) ? now + Number(value) * 1000 : Date.parse(value);
+  return Number.isFinite(time) ? new Date(time) : null;
+}
+export class ProviderError extends Error { constructor(public status: number, message: string, public notBefore: Date | null = null) { super(message); } }
 export async function identifyAccount(provider: Provider, token: Token) {
   const authorization = { Authorization: `Bearer ${token.access_token}` };
   if (provider === "youtube") {

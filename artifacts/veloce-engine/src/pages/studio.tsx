@@ -13,14 +13,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { cn } from "@/lib/utils";
 import { PageHeader, Pill, Sk, ErrorState, EmptyState, isActiveStatus, statusTone, errMsg } from "@/components/kit";
-import { usePack, useDub, PackButton, DubButton, isUncertain } from "@/components/autopilot";
+import { usePack, useDub, PackButton, DubButton, isUncertain, RenderBudgetSettings, FailureDetails } from "@/components/autopilot";
 
 const MAX_SOURCES = 5;
 const newKey = () => (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}-launch`).replace(/[^a-zA-Z0-9-]/g, "");
 const parseSources = (t: string) => t.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
 const isCancelled = (s: string) => /cancel/i.test(s);
 const isFailed = (s: string) => /fail|error/i.test(s);
-const jobLive = (j: SwarmJob) => isActiveStatus(j.status) && !isCancelled(j.status) && !isUncertain(j.status);
+const jobLive = (j: SwarmJob) => ["queued", "processing"].includes(j.status);
 
 type Pending = { job: SwarmJob; action: JobActionAction } | null;
 
@@ -58,7 +58,7 @@ function ClipTile({ c, jobId, pack, dub }: { c: SwarmClip; jobId: number; pack: 
 function JobCard({ j, onAction, pack, dub }: { j: SwarmJob; onAction: (a: JobActionAction) => void; pack: ReturnType<typeof usePack>; dub: ReturnType<typeof useDub> }) {
   const live = jobLive(j);
   const readyIds = j.clips.filter((c) => c.clip?.videoUrl && /ready|complete|done/i.test(c.status) && !c.clip.originalClipId).map((c) => c.clip!.id);
-  const uncertain = isUncertain(j.status) || isUncertain(j.notice);
+  const uncertain = isUncertain(j.status) || j.failureKind === "uncertain_ai";
   return (
     <article className="panel overflow-hidden rise" data-testid={`card-job-${j.id}`}>
       <div className="px-4 pt-3.5 pb-3 border-b border-white/[0.05]">
@@ -82,8 +82,9 @@ function JobCard({ j, onAction, pack, dub }: { j: SwarmJob; onAction: (a: JobAct
         </div>
         {j.notice && <p className="mt-2 text-[11.5px] text-zinc-400 leading-relaxed" data-testid={`text-job-notice-${j.id}`}>{j.notice}</p>}
         {j.error && <div className="mt-2 text-[12px] text-red-300 bg-red-500/5 border border-red-500/15 rounded-md px-2.5 py-1.5 break-words" data-testid={`text-job-error-${j.id}`}>{j.error}</div>}
+        <FailureDetails status={j.status} kind={j.failureKind} count={j.failures} retryAt={j.retryAt} />
         <div className="flex flex-wrap gap-1.5 mt-3">
-          {live && <button className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-white/[0.08] text-[12px] hover:bg-white/[0.05]" onClick={() => onAction("cancel")} data-testid={`button-cancel-${j.id}`}><Ban className="w-3.5 h-3.5" />Cancel</button>}
+          {(live || ["retry", "budget_paused", "uncertain"].includes(j.status)) && <button className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-white/[0.08] text-[12px] hover:bg-white/[0.05]" onClick={() => onAction("cancel")} data-testid={`button-cancel-${j.id}`}><Ban className="w-3.5 h-3.5" />Cancel</button>}
           {!live && (isFailed(j.status) || isCancelled(j.status)) && <button className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-white/[0.08] text-[12px] hover:bg-white/[0.05]" onClick={() => onAction("retry")} data-testid={`button-retry-${j.id}`}><RotateCw className="w-3.5 h-3.5" />Retry</button>}
           {uncertain && <button className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-amber-500/30 text-amber-300 text-[12px] hover:bg-amber-500/10" onClick={() => onAction("acknowledge-uncertain")} data-testid={`button-ack-${j.id}`}><AlertTriangle className="w-3.5 h-3.5" />Review uncertain billing</button>}
           {readyIds.length > 1 && <DubButton className="h-8" pending={dub.pending} onClick={() => dub.start(readyIds)} testId={`button-dub-batch-${j.id}`}>Clone & Dub (ES / PT) all {readyIds.length}</DubButton>}
@@ -210,6 +211,7 @@ export default function Studio() {
         </div>
       </section>
 
+      {isAuthenticated && <RenderBudgetSettings />}
       <section className="mt-7">
         <div className="flex items-end justify-between mb-3 gap-3">
           <div>

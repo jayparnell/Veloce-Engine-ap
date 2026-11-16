@@ -21,4 +21,9 @@ export interface PublishEntry {
   remoteId?: string | null;
   /** @nullable */
   error?: string | null;
+  attempts?: number;
+  /** @nullable */
+  failureKind?: string | null;
+  /** @nullable */
+  retryAt?: Date | null;
 }

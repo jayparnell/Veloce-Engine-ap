@@ -4,3 +4,4 @@
 - [Preview session cookies](preview-session-cookies.md) — Preview may rewrite SameSite; verify app policy and persistence without logging cookie values.
 - [Publishing consent](publishing-consent.md) — automation does not backfill the historical vault; TikTok still requires per-video review and privacy/music consent.
 - [Build and service ownership](build-service-ownership.md) — post-merge builds can run before live services stop; retain worker listener ownership through draining.
+- [Queue test isolation](queue-test-isolation.md) — isolated schemas do not isolate PostgreSQL advisory locks; serialize suites sharing worker locks.

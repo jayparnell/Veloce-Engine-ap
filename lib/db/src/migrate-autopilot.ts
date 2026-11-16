@@ -9,6 +9,7 @@ try {
   await connection.query("SELECT pg_advisory_xact_lock(74005,0)");
   const migration = await readFile(new URL("../migrations/20261116_autopilot.sql", import.meta.url), "utf8");
   await connection.query(migration);
+  await connection.query(await readFile(new URL("../migrations/20261116_render_guardrails.sql", import.meta.url), "utf8"));
   await connection.query("COMMIT");
 } catch (error) {
   await connection.query("ROLLBACK");

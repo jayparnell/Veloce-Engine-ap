@@ -4,6 +4,7 @@ import { File } from "node:buffer";
 import { performance } from "node:perf_hooks";
 import { db, projectsTable, autopilotJobsTable, generatedClipsTable as clips, campaignsTable, type Checkpoint, type PoolClient } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { openai, batchProcess } from "@workspace/integrations-openai-ai-server";
 import { z } from "zod";
 import { JobContext } from "./job-context";
@@ -15,6 +16,7 @@ import { ownedFile, storeLocalFile } from "../lib/mediaStorage";
 import { finalizeUpload } from "../lib/uploads";
 import { assignReadyClips } from "../publishing/allocator";
 import { workspaceRoot as root, mediaPython as python, mediaRenderer as renderer } from "./paths";
+import { reserveOutputs, commitOutput, outputKey } from "../lib/render-budget";
 
 const momentSchema = z.object({
   start: z.number().nonnegative(), end: z.number().positive(), title: z.string().min(1).max(160),
@@ -147,10 +149,13 @@ export async function runAutopilot(ctx: JobContext, connection: PoolClient) {
         await db.update(projectsTable).set({ clipCount: moments.length }).where(eq(projectsTable.id, project.id));
       }
     }
+    await reserveOutputs(owner, ctx.job.id, moments!.length, ctx.token);
     for (const [index, moment] of moments!.entries()) {
       await ctx.check();
       const [exists] = await db.select().from(clips).where(and(eq(clips.jobId, ctx.job.id), eq(clips.momentIndex, index)));
       if (exists) continue;
+      const receipt = await connection.query("SELECT completed_at FROM render_reservations WHERE output_key=$1", [outputKey(ctx.job.id, index)]);
+      if (receipt.rows[0]?.completed_at) continue; // Deleted output is not a new allowance.
       await ctx.save(`clip:${index}:status`, "narration + selected range");
       await ctx.update({ stage: `clip ${index + 1}/${moments!.length}`, progress: 35 + Math.floor(index / moments!.length * 60) });
       // Independent download and narration overlap. Both are joined before temporary files are removed.
@@ -226,13 +231,16 @@ export async function runAutopilot(ctx: JobContext, connection: PoolClient) {
       const captionPath = await asset(`clip:${index}:captions`, captions, "text/plain");
       const fittedVoice = await asset(`clip:${index}:fittedVoice`, voiceFile, "audio/mpeg");
       await ctx.check();
-      await db.insert(clips).values({
+      await commitOutput(owner, ctx.job.id, index, ctx.token, async (c) => {
+      await drizzle(c).insert(clips).values({
         jobId: ctx.job.id, momentIndex: index, projectId: project.id, ownerId: owner, language: ctx.job.language, originalClipId: ctx.job.originalClipId,
         creator: "Your authorized source", mode: "commentary", title: moment.title, hook: moment.hook, script: voice.transcript,
         hashtags: moment.hashtags, pinnedComment: moment.pinnedComment, duration: Number(probe.format.duration),
         hookScore: moment.hookScore, visualScore: 65, commentaryScore: 75, score: Math.round(moment.hookScore * .4 + 65 * .3 + 75 * .3),
         objectPath: outputPath, voiceoverObjectPath: fittedVoice, captionsObjectPath: captionPath, videoUrl: `/api/storage${outputPath}`, thumbnail: `/api/storage${posterPath}`, demo: false,
       }).onConflictDoNothing({ target: [clips.jobId, clips.momentIndex] });
+      await c.query("UPDATE render_reservations SET completed_at=now() WHERE output_key=$1", [outputKey(ctx.job.id, index)]);
+      });
       await ctx.save(`clip:${index}:status`, "ready");
       await assignReadyClips(owner);
     }
