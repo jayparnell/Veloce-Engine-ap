@@ -247,6 +247,21 @@ paths:
       operationId: deleteClip
       responses:
         "204": { description: Deleted }
+  /clips/{id}/regenerate:
+    post:
+      operationId: regenerateClip
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "202":
+          description: Saved edits queued for regeneration; previous media stays playable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Clip" }
+        "409": { description: "No saved changes, unsupported historical clip, or regeneration already active" }
+        "401": { description: Sign in required }
+        "404": { description: Clip not found }
+        "429": { description: Workspace queue limit reached }
   /exports:
     post:
       operationId: createExport
@@ -730,6 +745,12 @@ components:
         commentaryScore: { type: number }
         thumbnail: { type: string }
         videoUrl: { type: string }
+        renderVersion: { type: integer }
+        renderOutdated: { type: boolean }
+        canRegenerate: { type: boolean }
+        renderStatus: { type: ["string", "null"] }
+        renderError: { type: ["string", "null"] }
+        regenerationJobId: { type: ["integer", "null"] }
         status: { type: string }
         demo: { type: boolean }
         hook: { type: string }

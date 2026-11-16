@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListClips, getListClipsQueryKey, useUpdateClip, useDeleteClip, useListCampaigns, getListCampaignsQueryKey,
-  getGetStudioSummaryQueryKey, type Clip,
+  getGetStudioSummaryQueryKey, useRegenerateClip, type Clip,
 } from "@workspace/api-client-react";
 import { Search, Film, Trash2, Save, Play, Pause, Captions, PictureInPicture2, Type, Grid3x3, Info, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -21,7 +21,7 @@ function Preview({ clip, d, showHook, safe }: { clip: Clip; d: Draft; showHook: 
   const [t, setT] = useState(0);
   const dur = clip.duration || 1;
   const hasVideo = !!clip.videoUrl;
-  useEffect(() => { setT(0); setPlaying(false); }, [clip.id]);
+  useEffect(() => { setT(0); setPlaying(false); }, [clip.id, clip.videoUrl]);
   function toggle() {
     const v = vRef.current; if (!v) return;
     if (v.paused) { v.play(); setPlaying(true); } else { v.pause(); setPlaying(false); }
@@ -95,17 +95,23 @@ export default function Vault() {
 
   const invalidate = () => { qc.invalidateQueries({ queryKey: getListClipsQueryKey() }); qc.invalidateQueries({ queryKey: getGetStudioSummaryQueryKey() }); };
   const update = useUpdateClip({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Clip saved", description: "Metadata and layout preferences stored. Existing renders are not regenerated." }); }, onError: (e) => toast({ title: "Save failed", description: errMsg(e), variant: "destructive" }) } });
+  const regenerate = useRegenerateClip({ mutation: {
+    onSuccess: () => { invalidate(); toast({ title: "Regeneration queued", description: "The current video remains playable until its replacement succeeds." }); },
+    onError: (e) => toast({ title: "Regeneration not started", description: errMsg(e), variant: "destructive" }),
+  } });
   const del = useDeleteClip({ mutation: { onSuccess: (_, v) => { invalidate(); setSel((s) => { const n = new Set(s); n.delete(v.id); return n; }); if (v.id === activeId) { setActiveId(null); initFor.current = null; } setConfirmDel(null); toast({ title: "Clip deleted" }); }, onError: (e) => toast({ title: "Delete failed", description: errMsg(e), variant: "destructive" }) } });
   const pack = usePack();
   const dub = useDub();
 
   const dirty = !!(active && draft && JSON.stringify(toDraft(active)) !== JSON.stringify(draft));
+  const renderBusy = !!active?.renderStatus && !["completed", "failed", "cancelled", "uncertain"].includes(active.renderStatus);
+  const renderStopped = !!active?.renderStatus && ["failed", "cancelled", "uncertain"].includes(active.renderStatus);
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => (d ? { ...d, [k]: v } : d));
   const toggleSel = (id: number) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   return (
     <div>
-      <PageHeader eyebrow="02 / Vault" title="Clip Vault & Editor" desc="Review drafts, tune metadata and preview layouts. Overlay toggles are previews; saving persists metadata and layout preferences without re-rendering."
+      <PageHeader eyebrow="02 / Vault" title="Clip Vault & Editor" desc="Save edits first, then explicitly regenerate the video. Saving alone never changes the MP4; playback and exports keep the last successful rendered version."
         actions={sel.size > 0 ? (<>
           <span className="mono text-[11.5px] text-zinc-400">{sel.size} selected</span>
           <button className={btn.ghost} onClick={() => setSel(new Set())}><X className="w-3.5 h-3.5" /> Clear</button>
@@ -152,8 +158,22 @@ export default function Vault() {
                 </div>
                 {!active.originalClipId && <DubButton pending={dub.pending} onClick={() => dub.start([active.id])} testId="button-dub-clip" />}
                 <PackButton pending={pack.pending} onClick={() => pack.start([active.id])} testId="button-export-clip" />
+                <button className={btn.primary} disabled={dirty || !active.canRegenerate || !active.renderOutdated || renderBusy || renderStopped || regenerate.isPending || update.isPending}
+                  onClick={() => regenerate.mutate({ id: active.id })} data-testid="button-regenerate-clip">
+                  {renderBusy ? "Regenerating..." : regenerate.isPending ? "Queuing..." : "Regenerate saved edits"}
+                </button>
                 <button className={btn.danger} onClick={() => setConfirmDel(active)} data-testid="button-delete-clip"><Trash2 className="w-3.5 h-3.5" /></button>
                 <button className={btn.ghost} disabled={!dirty || update.isPending || !draft.title.trim()} onClick={() => update.mutate({ id: active.id, data: draft })} data-testid="button-save-clip"><Save className="w-3.5 h-3.5" /> {update.isPending ? "Saving..." : "Save"}</button>
+              </div>
+              <div className="px-4 py-3 border-b border-white/[0.06] text-[11.5px] text-zinc-400 space-y-1" data-testid="render-version">
+                <div>{active.demo ? "Sample · no rendered video" : `Playing / exporting rendered version ${active.renderVersion ?? 1}`}
+                  {active.renderOutdated && <span className="text-amber-400"> · Saved edits are not in this video</span>}</div>
+                {renderBusy && <div>Replacement {active.renderStatus?.replaceAll("_", " ")}. The previous version remains available.</div>}
+                {active.renderError && <div className="text-amber-400">{active.renderError}</div>}
+                {renderStopped && <div>Previous video unchanged. <Link href="/" className="underline">Open Studio Autopilot to recover this job</Link>.</div>}
+                {!active.canRegenerate && !active.demo && <div>Retained source inputs are unavailable for this historical clip. Start a new source batch to enable regeneration.</div>}
+                {active.canRegenerate && <div>Regeneration uses one render allowance. Changed narration uses Replit-hosted gpt-audio and credits; unchanged voice and caption timing are reused. Facecam PiP uses detected faces only. Campaign selection changes the saved association, not the original sponsor media.</div>}
+                {dirty && <div>Save your edits before regenerating.</div>}
               </div>
               <div className="grid xl:grid-cols-[300px_1fr] gap-6 p-4 md:p-5">
                 <div>

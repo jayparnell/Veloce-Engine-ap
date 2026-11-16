@@ -2,8 +2,9 @@ import { ZipArchive } from "archiver";
 import { PassThrough } from "node:stream";
 import type { Clip } from "@workspace/db";
 import { ownedFile, storeBytes } from "../lib/mediaStorage";
+import { renderInfo, snapshot, outdated } from "./render-state";
 
-export async function buildExport(clips: Clip[], owner: string) {
+export async function buildExport(clips: Clip[], owner: string, storage = { ownedFile, storeBytes }) {
   const archive = new ZipArchive({ zlib: { level: 1 } });
   const output = new PassThrough();
   const chunks: Buffer[] = [];
@@ -22,40 +23,43 @@ export async function buildExport(clips: Clip[], owner: string) {
   void complete.catch(() => {});
   archive.pipe(output);
   let includesVideo = false;
-  archive.append("Veloce Engine export\n\nDemo clips have metadata only. Real renders are 1080x1920 at 60fps.\nOriginality/reach scores are heuristic editing guidance, not compliance or monetization guarantees.\nReview source permissions, music rights, sponsorship disclosures and platform policies before uploading.\nEditor changes update metadata and preview preferences; existing MP4 files are not re-rendered by saving metadata.\n", { name: "READ-ME.txt" });
+  archive.append("Veloce Engine export\n\nDemo clips have metadata only. Real renders are 1080x1920 at 60fps.\nOriginality/reach scores are heuristic editing guidance, not compliance or monetization guarantees.\nReview source permissions, music rights, sponsorship disclosures and platform policies before uploading.\nSaving edits does not render video. Use Regenerate saved edits in the Vault. Exports use the last successful rendered version and matching assets/copy. Newer saved edits are included separately in saved-edits.json.\nHistorical clips without a retained snapshot have unverified metadata; regenerate from a new source batch to establish a matching version.\n", { name: "READ-ME.txt" });
   for (const clip of clips) {
     const folder = `clip-${clip.id}`;
+    const info = await renderInfo(clip);
+    const copy = info?.snapshot ?? snapshot(clip);
+    if (outdated(clip, info)) archive.append(JSON.stringify(snapshot(clip), null, 2), { name: `${folder}/saved-edits.json` });
     archive.append(JSON.stringify({
-      title: clip.title, hook: clip.hook, script: clip.script, hashtags: clip.hashtags,
+      ...copy, renderVersion: info?.version ?? (clip.objectPath ? 1 : 0), metadataVerified: !!info,
       language: clip.language, originalClipId: clip.originalClipId,
-      pinnedComment: clip.pinnedComment, demo: clip.demo,
+      demo: clip.demo,
       heuristicScore: clip.score, reviewRequired: true,
       captionTiming: "Individual word timing estimated from the narration speech envelope; review before publishing.",
       platforms: clip.platforms.map((platform) => ({
         platform,
-        title: platform === "YouTube Shorts" ? clip.title.slice(0, 90) + " #Shorts" : clip.title,
-        description: `${clip.hook}\n${clip.hashtags}`,
-        pinnedComment: clip.pinnedComment,
+        title: platform === "YouTube Shorts" ? copy.title.slice(0, 90) + " #Shorts" : copy.title,
+        description: `${copy.hook}\n${copy.hashtags}`,
+        pinnedComment: copy.pinnedComment,
       })),
     }, null, 2), { name: `${folder}/metadata.json` });
-    const publishingCopy = `Title: ${clip.title}\n\nHook: ${clip.hook}\n\nHashtags: ${clip.hashtags}\n\nPinned comment:\n${clip.pinnedComment}\n\nNarration:\n${clip.script}`;
+    const publishingCopy = `Title: ${copy.title}\n\nHook: ${copy.hook}\n\nHashtags: ${copy.hashtags}\n\nPinned comment:\n${copy.pinnedComment}\n\nNarration:\n${copy.script}`;
     archive.append(publishingCopy, { name: `${folder}/copy.txt` });
     archive.append(publishingCopy, { name: `${folder}/captions.txt` });
     if (clip.captionsObjectPath) {
-      const captions = await ownedFile(clip.captionsObjectPath, owner);
+      const captions = await storage.ownedFile(clip.captionsObjectPath, owner);
       archive.append(captions.createReadStream(), { name: `${folder}/captions.srt` });
     }
     if (clip.voiceoverObjectPath) {
-      const voice = await ownedFile(clip.voiceoverObjectPath, owner);
+      const voice = await storage.ownedFile(clip.voiceoverObjectPath, owner);
       archive.append(voice.createReadStream(), { name: `${folder}/voiceover.mp3` });
     }
     if (clip.objectPath && !clip.demo) {
-      const file = await ownedFile(clip.objectPath, owner);
+      const file = await storage.ownedFile(clip.objectPath, owner);
       archive.append(file.createReadStream(), { name: `${folder}/video.mp4` });
       includesVideo = true;
     }
   }
   await archive.finalize();
-  const objectPath = await storeBytes(await complete, owner, "application/zip");
+  const objectPath = await storage.storeBytes(await complete, owner, "application/zip");
   return { downloadUrl: `/api/storage${objectPath}`, filename: "veloce-export.zip", includesVideo, message: includesVideo ? "Export package includes rendered MP4 files and platform metadata. Review before publishing." : "Demo export: metadata and publishing copy only. No rendered video is included." };
 }

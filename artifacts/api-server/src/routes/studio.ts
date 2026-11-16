@@ -8,8 +8,11 @@ import { finalizeUpload } from "../lib/uploads";
 import { ownedFile } from "../lib/mediaStorage";
 import { buildExport } from "../pipeline/export";
 import { getCapabilities } from "../lib/capabilities";
+import { publicClip, renderInfo } from "../pipeline/render-state";
+import regenerationRouter from "./regeneration";
 
 const router: IRouter = Router();
+router.use(regenerationRouter);
 const jsonDates = <T extends { createdAt: Date }>(row: T) => ({ ...row, createdAt: row.createdAt.toISOString() });
 const acceptableHosts = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "twitch.tv", "www.twitch.tv", "kick.com", "www.kick.com"]);
 export function validSource(source: string) {
@@ -93,7 +96,7 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 router.get("/clips", async (req, res): Promise<void> => {
-  res.json(ListClipsResponse.parse((await db.select().from(generatedClipsTable).where(and(eq(generatedClipsTable.ownerId, req.workspaceId), req.isAuthenticated() ? eq(generatedClipsTable.demo, false) : undefined)).orderBy(desc(generatedClipsTable.id))).map(jsonDates)));
+  res.json(ListClipsResponse.parse(await Promise.all((await db.select().from(generatedClipsTable).where(and(eq(generatedClipsTable.ownerId, req.workspaceId), req.isAuthenticated() ? eq(generatedClipsTable.demo, false) : undefined)).orderBy(desc(generatedClipsTable.id))).map(publicClip))));
 });
 router.patch("/clips/:id", async (req, res): Promise<void> => {
   const params = UpdateClipParams.safeParse(req.params);
@@ -103,9 +106,15 @@ router.patch("/clips/:id", async (req, res): Promise<void> => {
     const [campaign] = await db.select().from(campaignsTable).where(and(eq(campaignsTable.id, parsed.data.campaignId), eq(campaignsTable.ownerId, req.workspaceId)));
     if (!campaign) { res.status(400).json({ error: "Campaign not found." }); return; }
   }
-  const [row] = await db.update(generatedClipsTable).set(parsed.data).where(and(eq(generatedClipsTable.id, params.data.id), eq(generatedClipsTable.ownerId, req.workspaceId))).returning();
+  const row = await db.transaction(async (tx) => {
+    const [old] = await tx.select().from(generatedClipsTable).where(and(eq(generatedClipsTable.id, params.data.id), eq(generatedClipsTable.ownerId, req.workspaceId))).for("update");
+    if (!old) return null;
+    const info = await renderInfo(old);
+    const [updated] = await tx.update(generatedClipsTable).set({ ...parsed.data, renderInfo: info }).where(eq(generatedClipsTable.id, old.id)).returning();
+    return updated;
+  });
   if (!row) { res.status(404).json({ error: "Clip not found." }); return; }
-  res.json(UpdateClipResponse.parse(jsonDates(row)));
+  res.json(UpdateClipResponse.parse(await publicClip(row)));
 });
 router.delete("/clips/:id", async (req, res): Promise<void> => {
   const parsed = DeleteClipParams.safeParse(req.params);

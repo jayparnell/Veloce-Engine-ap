@@ -68,6 +68,29 @@ class MediaWorkerTests(unittest.TestCase):
             # FFmpeg sine defaults to amplitude 4095; measured gain must match before codec loss.
             self.assertAlmostEqual(math.sqrt(np.mean(samples ** 2)) / (4095 / math.sqrt(2)), .15, delta=.002)
 
+    def test_retained_captions_reuse_exact_timing_and_reject_wrong_duration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "previous.srt"
+            path.write_text("1\n00:00:00,120 --> 00:00:00,730\nOriginal\n\n2\n00:00:00,730 --> 00:00:01,100\nwords\n")
+            words = worker.retained_words(path, 2)
+            self.assertEqual(words, [
+                {"start": .12, "end": .73, "text": "Original"},
+                {"start": .73, "end": 1.1, "text": "words"},
+            ])
+            with self.assertRaisesRegex(ValueError, "do not fit"):
+                worker.retained_words(path, .5)
+            path.write_text("1\nbad timing\nwords")
+            with self.assertRaisesRegex(ValueError, "invalid"):
+                worker.retained_words(path, 2)
+
+    def test_disabled_captions_keep_hook_without_narration_overlay(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "disabled.ass"
+            worker.captions_file(path, "Edited hook", [], 2, [])
+            text = path.read_text()
+            self.assertIn("Edited hook", text)
+            self.assertNotIn(",Caption,,", text)
+
     def test_temporal_crop_expression_moves_and_clamps(self):
         points = [{"t": 0, "x": .1}, {"t": .5, "x": .8}, {"t": 1, "x": .9}]
         expression = worker.tracking_expression(points, "x", 1920, 608)

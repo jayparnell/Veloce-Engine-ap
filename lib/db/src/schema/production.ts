@@ -1,6 +1,20 @@
 import { pgTable, serial, text, integer, boolean, timestamp, jsonb, real, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 
+export type RenderSnapshot = {
+  title: string; hook: string; script: string; hashtags: string; pinnedComment: string;
+  captions: boolean; pictureInPicture: boolean; campaignId: number | null;
+};
+export type RenderRecipe = {
+  source: { objectPath: string };
+  segments: { start: number; end: number; title: string }[];
+  mode: string;
+  sponsorAudio?: string;
+  watermark?: string;
+  cta?: string;
+};
+export type RenderInfo = { version: number; snapshot: RenderSnapshot; recipe: RenderRecipe };
+
 export const projectsTable = pgTable("projects", {
   id: serial("id").primaryKey(),
   ownerId: text("owner_id").notNull(),
@@ -46,6 +60,8 @@ export const generatedClipsTable = pgTable("generated_clips", {
   objectPath: text("object_path"),
   voiceoverObjectPath: text("voiceover_object_path"),
   captionsObjectPath: text("captions_object_path"),
+  renderInfo: jsonb("render_info").$type<RenderInfo>(),
+  regenerationJobId: integer("regeneration_job_id"),
   status: text("status").notNull().default("ready"),
   demo: boolean("demo").notNull().default(false),
   hook: text("hook").notNull(),

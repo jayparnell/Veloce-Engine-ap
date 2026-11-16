@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { db, autopilotJobsTable as jobs, projectsTable, generatedClipsTable as clips, mediaUploadsTable, aiCheckpointsTable, socialAccountsTable as accounts, publishQueueTable, workerServicesTable, campaignsTable, autopilotAdmissionsTable as admissions } from "@workspace/db";
-import { eq, and, desc, inArray, sql, isNotNull } from "drizzle-orm";
+import { eq, and, or, desc, inArray, sql, isNotNull } from "drizzle-orm";
 import { LaunchAutopilotBody, LaunchAutopilotResponse, GetAutopilotSwarmResponse, ControlAutopilotJobBody, ControlAutopilotJobParams, CloneAndDubBody, GetAutopilotAccountsResponse, UpdateAutopilotAccountBody, UpdateAutopilotAccountParams, UpdateAutopilotAccountResponse, DisconnectAutopilotAccountParams, GetAutopilotScheduleResponse } from "@workspace/api-zod";
 import { validSource } from "./studio";
 import { PRESETS, validTimezone } from "../publishing/slots";
@@ -75,14 +75,16 @@ router.post("/autopilot/launch", async (req, res): Promise<void> => {
 router.get("/autopilot/swarm", async (req, res): Promise<void> => {
   // Keep every active job visible, even when an older uncertain source predates the recent history.
    const rows = await db.select({ job: jobs, project: projectsTable }).from(jobs).innerJoin(projectsTable, eq(jobs.projectId, projectsTable.id)).where(eq(jobs.ownerId, req.workspaceId)).orderBy(sql`CASE WHEN ${jobs.status} IN ('queued','processing','uncertain','retry','budget_paused') THEN 0 ELSE 1 END`, desc(jobs.id)).limit(110);
-  const ready = rows.length ? await db.select().from(clips).where(and(eq(clips.ownerId, req.workspaceId), inArray(clips.jobId, rows.map(({ job }) => job.id)))) : [];
+  const ready = rows.length ? await db.select().from(clips).where(and(eq(clips.ownerId, req.workspaceId), or(inArray(clips.jobId, rows.map(({ job }) => job.id)), inArray(clips.regenerationJobId, rows.map(({ job }) => job.id))))) : [];
   res.json(GetAutopilotSwarmResponse.parse(rows.map(({ job, project }) => {
     const done = ready.filter((c) => c.jobId === job.id);
     const moments = job.checkpoint.moments as unknown[] | undefined;
     const count = job.originalClipId ? 1 : moments?.length ?? project.clipCount;
-     return { ...job, error: job.error ? redactError(new Error(job.error)) : null, retryAt: job.retryAt?.toISOString() ?? null, sourceUrl: project.sourceUrl, title: project.title, createdAt: job.createdAt.toISOString(),
+     return { ...job, error: job.error ? redactError(new Error(job.error)) : null, retryAt: job.retryAt?.toISOString() ?? null, sourceUrl: project.sourceUrl, title: job.checkpoint.regeneration ? `Editor regeneration · clip #${job.originalClipId}` : project.title, createdAt: job.createdAt.toISOString(),
       clips: Array.from({ length: count }, (_, index) => {
-        const clip = done.find((c) => c.momentIndex === index);
+        const clip = job.checkpoint.regeneration
+          ? ready.find((c) => c.id === job.originalClipId && c.regenerationJobId === job.id && c.renderInfo?.version === (job.checkpoint.regeneration as { version: number }).version)
+          : done.find((c) => c.momentIndex === index);
         return { index, language: job.language, status: clip ? "ready" : job.checkpoint[`clip:${index}:status`] ?? (job.status === "processing" ? "waiting" : job.status),
           ...(clip ? { clip: { ...clip, createdAt: clip.createdAt.toISOString() } } : {}) };
       }) };
@@ -121,7 +123,7 @@ router.post("/autopilot/dub", async (req, res): Promise<void> => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${req.workspaceId}))`);
       const originals = await tx.select().from(clips).where(and(eq(clips.ownerId, req.workspaceId), inArray(clips.id, [...new Set(input.data.clipIds)])));
       if (originals.length !== new Set(input.data.clipIds).size || originals.some((c) => c.demo || !c.objectPath || c.language !== "en" || !c.jobId)) throw new InputError("Select ready English Autopilot clips. Historical clips remain playable but need a new source run to support recoverable dubbing.");
-      const existing = await tx.select().from(jobs).where(and(eq(jobs.ownerId, req.workspaceId), inArray(jobs.originalClipId, originals.map((c) => c.id))));
+      const existing = (await tx.select().from(jobs).where(and(eq(jobs.ownerId, req.workspaceId), inArray(jobs.originalClipId, originals.map((c) => c.id))))).filter((j) => !j.checkpoint.regeneration);
       const pending = originals.flatMap((clip) => ["es", "pt"].filter((language) => !existing.some((j) => j.originalClipId === clip.id && j.language === language)).map((language) => ({ ownerId: req.workspaceId, projectId: clip.projectId, originalClipId: clip.id, language, inputHash: digest([clip.id, language]), requestKey: `dub:${clip.id}:${language}` })));
       const usage = await tx.execute(autopilotUsage(req.workspaceId));
       if (Number(usage.rows[0]?.active) + pending.length > 10 || Number(usage.rows[0]?.daily) + pending.length > 20) throw new InputError("Dub jobs exceed your 10 active / 20 daily job quota. Select fewer clips or wait.", 429);

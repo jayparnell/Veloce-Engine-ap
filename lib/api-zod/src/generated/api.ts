@@ -135,6 +135,12 @@ export const GetAutopilotSwarmResponseItem = zod.object({
   "commentaryScore": zod.number(),
   "thumbnail": zod.string(),
   "videoUrl": zod.string(),
+  "renderVersion": zod.number().int().optional(),
+  "renderOutdated": zod.boolean().optional(),
+  "canRegenerate": zod.boolean().optional(),
+  "renderStatus": zod.string().nullish(),
+  "renderError": zod.string().nullish(),
+  "regenerationJobId": zod.number().int().nullish(),
   "status": zod.string(),
   "demo": zod.boolean(),
   "hook": zod.string(),
@@ -410,6 +416,12 @@ export const ListClipsResponseItem = zod.object({
   "commentaryScore": zod.number(),
   "thumbnail": zod.string(),
   "videoUrl": zod.string(),
+  "renderVersion": zod.number().int().optional(),
+  "renderOutdated": zod.boolean().optional(),
+  "canRegenerate": zod.boolean().optional(),
+  "renderStatus": zod.string().nullish(),
+  "renderError": zod.string().nullish(),
+  "regenerationJobId": zod.number().int().nullish(),
   "status": zod.string(),
   "demo": zod.boolean(),
   "hook": zod.string(),
@@ -467,6 +479,12 @@ export const UpdateClipResponse = zod.object({
   "commentaryScore": zod.number(),
   "thumbnail": zod.string(),
   "videoUrl": zod.string(),
+  "renderVersion": zod.number().int().optional(),
+  "renderOutdated": zod.boolean().optional(),
+  "canRegenerate": zod.boolean().optional(),
+  "renderStatus": zod.string().nullish(),
+  "renderError": zod.string().nullish(),
+  "regenerationJobId": zod.number().int().nullish(),
   "status": zod.string(),
   "demo": zod.boolean(),
   "hook": zod.string(),
@@ -486,6 +504,45 @@ export const DeleteClipParams = zod.object({
 })
 
 export const DeleteClipResponse = zod.void()
+
+
+export const RegenerateClipParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RegenerateClipResponse = zod.object({
+  "id": zod.number().int(),
+  "language": zod.string().optional(),
+  "originalClipId": zod.number().int().nullish(),
+  "projectId": zod.number().int(),
+  "title": zod.string(),
+  "creator": zod.string(),
+  "mode": zod.string(),
+  "duration": zod.number(),
+  "score": zod.number(),
+  "hookScore": zod.number(),
+  "visualScore": zod.number(),
+  "commentaryScore": zod.number(),
+  "thumbnail": zod.string(),
+  "videoUrl": zod.string(),
+  "renderVersion": zod.number().int().optional(),
+  "renderOutdated": zod.boolean().optional(),
+  "canRegenerate": zod.boolean().optional(),
+  "renderStatus": zod.string().nullish(),
+  "renderError": zod.string().nullish(),
+  "regenerationJobId": zod.number().int().nullish(),
+  "status": zod.string(),
+  "demo": zod.boolean(),
+  "hook": zod.string(),
+  "script": zod.string(),
+  "hashtags": zod.string(),
+  "pinnedComment": zod.string(),
+  "platforms": zod.array(zod.string()),
+  "captions": zod.boolean(),
+  "pictureInPicture": zod.boolean(),
+  "campaignId": zod.number().int().nullish(),
+  "createdAt": zod.string()
+})
 
 
 export const createExportBodyClipIdsMax = 20;

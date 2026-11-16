@@ -2002,6 +2002,74 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getDeleteClipMutationOptions(options), queryClient);
     }
 
+export const getRegenerateClipUrl = (id: number,) => {
+
+
+
+
+  return `/api/clips/${id}/regenerate`
+}
+
+export const regenerateClip = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Clip> => {
+
+  return customFetch<Clip>(getRegenerateClipUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRegenerateClipMutationKey = () => ['regenerateClip'] as const;
+
+export const getRegenerateClipMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof regenerateClip>>, TError,RegenerateClipMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof regenerateClip>>, TError,RegenerateClipMutationVariables, TContext> => {
+
+const mutationKey = getRegenerateClipMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof regenerateClip>>, RegenerateClipMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  regenerateClip(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegenerateClipMutationResult = NonNullable<Awaited<ReturnType<typeof regenerateClip>>>
+
+    export type RegenerateClipMutationError = ErrorType<void>
+    export type RegenerateClipMutationVariables = {id: number}
+
+    export const useRegenerateClip = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof regenerateClip>>, TError,RegenerateClipMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof regenerateClip>>,
+        TError,
+        RegenerateClipMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRegenerateClipMutationOptions(options), queryClient);
+    }
+
 export const getCreateExportUrl = () => {
 
 

@@ -241,6 +241,27 @@ def tracking_expression(points, field, pixels, extent):
     return expr
 
 
+def retained_words(path, duration):
+    """Reuse exact word timing from the fitted narration's persisted SRT."""
+    words = []
+    stamp = r"(\d+):(\d+):(\d+),(\d+)"
+    for block in Path(path).read_text().strip().split("\n\n"):
+        lines = block.strip().splitlines()
+        if len(lines) < 3:
+            raise ValueError("Retained captions are invalid")
+        match = re.fullmatch(stamp + r" --> " + stamp, lines[1])
+        if not match:
+            raise ValueError("Retained caption timing is invalid")
+        parts = list(map(int, match.groups()))
+        def seconds(p):
+            return p[0] * 3600 + p[1] * 60 + p[2] + p[3] / 1000
+        start, end = seconds(parts[:4]), seconds(parts[4:])
+        if not 0 <= start < end <= duration + .05:
+            raise ValueError("Retained captions do not fit this video")
+        words.append({"start": start, "end": end, "text": " ".join(lines[2:])})
+    return words
+
+
 def render(config_path):
     config = json.loads(Path(config_path).read_text())
     work = Path(config_path).parent
@@ -257,6 +278,8 @@ def render(config_path):
         output = str(work / f"{Path(config_path).stem}-part-{index}.mp4")
         inputs = ["ffmpeg", "-v", "error", "-y", "-ss", str(segment["start"]), "-t", str(length), "-i", config["source"]]
         points, split = track_faces(config["source"], segment["start"], length)
+        if not config.get("pictureInPicture", True):
+            points, split = [], False
         if points and split:
             crop = min(width, height, max(2, int(max(p["size"] for p in points) * max(width, height) * 2.2) // 2 * 2))
             x = tracking_expression(points, "x", width, crop)
@@ -290,19 +313,20 @@ def render(config_path):
         os.replace(faster, config["voiceFile"])
         narration_duration = float(probe(config["voiceFile"])["format"]["duration"])
     intervals = speech_intervals(config["voiceFile"], work)
-    words = timed_words(config["script"], intervals, min(elapsed, narration_duration))
+    words = retained_words(config["captionsInput"], elapsed) if config.get("captionsInput") else timed_words(config["script"], intervals, min(elapsed, narration_duration))
     if config.get("captionsOutput"):
         Path(config["captionsOutput"]).write_text("\n\n".join(
             f"{i + 1}\n{srt_time(w['start'])} --> {srt_time(w['end'])}\n{w['text']}" for i, w in enumerate(words)
         ) + "\n")
     ass = str(work / f"{Path(config_path).stem}.ass")
-    captions_file(ass, config["hook"], words, elapsed, chapters if config["mode"] == "story" else [])
+    captions_file(ass, config["hook"], words if config.get("captions", True) else [], elapsed, chapters if config["mode"] == "story" else [])
     inputs = ["ffmpeg", "-v", "error", "-y", "-i", combined, "-i", config["voiceFile"]]
     filters = [
         f"[0:a]{source_ducking(intervals)}[src]",
         "[1:a]apad[voice]",
         "[src][voice]amix=inputs=2:duration=first:normalize=0[mix]",
-        f"[0:v]drawbox=x=40:y=110:w=1000:h=300:color=black@0.72:t=fill:enable='lt(t,3)',ass={ass}[sub]",
+        (f"[0:v]drawbox=x=40:y=110:w=1000:h=300:color=black@0.72:t=fill:enable='lt(t,3)',ass={ass}[sub]"
+         if config["hook"] else f"[0:v]ass={ass}[sub]"),
     ]
     audio_label = "mix"
     video_label = "sub"

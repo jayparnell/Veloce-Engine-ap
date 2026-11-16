@@ -22,6 +22,15 @@ export interface Clip {
   commentaryScore: number;
   thumbnail: string;
   videoUrl: string;
+  renderVersion?: number;
+  renderOutdated?: boolean;
+  canRegenerate?: boolean;
+  /** @nullable */
+  renderStatus?: string | null;
+  /** @nullable */
+  renderError?: string | null;
+  /** @nullable */
+  regenerationJobId?: number | null;
   status: string;
   demo: boolean;
   hook: string;

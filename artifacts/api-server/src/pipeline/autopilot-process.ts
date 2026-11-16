@@ -17,6 +17,8 @@ import { finalizeUpload } from "../lib/uploads";
 import { assignReadyClips } from "../publishing/allocator";
 import { workspaceRoot as root, mediaPython as python, mediaRenderer as renderer } from "./paths";
 import { reserveOutputs, commitOutput, outputKey } from "../lib/render-budget";
+import { runRegeneration } from "./regenerate";
+import { snapshot } from "./render-state";
 
 const momentSchema = z.object({
   start: z.number().nonnegative(), end: z.number().positive(), title: z.string().min(1).max(160),
@@ -33,6 +35,7 @@ async function persist(path: string, owner: string, type: string): Promise<Asset
   return { objectPath: await storeLocalFile(path, owner, type) };
 }
 export async function runAutopilot(ctx: JobContext, connection: PoolClient) {
+  if (ctx.job.checkpoint.regeneration) return runRegeneration(ctx, connection);
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, ctx.job.projectId));
   if (!project) throw new Error("Source project no longer exists.");
   const owner = ctx.job.ownerId;
@@ -230,6 +233,8 @@ export async function runAutopilot(ctx: JobContext, connection: PoolClient) {
       const posterPath = await asset(`clip:${index}:poster`, poster, "image/jpeg");
       const captionPath = await asset(`clip:${index}:captions`, captions, "text/plain");
       const fittedVoice = await asset(`clip:${index}:fittedVoice`, voiceFile, "audio/mpeg");
+      let sponsorPath: string | undefined;
+      if (sponsorAudio) sponsorPath = await asset(`clip:${index}:sponsor`, sponsorAudio, "audio/mpeg");
       await ctx.check();
       await commitOutput(owner, ctx.job.id, index, ctx.token, async (c) => {
       await drizzle(c).insert(clips).values({
@@ -238,6 +243,8 @@ export async function runAutopilot(ctx: JobContext, connection: PoolClient) {
         hashtags: moment.hashtags, pinnedComment: moment.pinnedComment, duration: Number(probe.format.duration),
         hookScore: moment.hookScore, visualScore: 65, commentaryScore: 75, score: Math.round(moment.hookScore * .4 + 65 * .3 + 75 * .3),
         objectPath: outputPath, voiceoverObjectPath: fittedVoice, captionsObjectPath: captionPath, videoUrl: `/api/storage${outputPath}`, thumbnail: `/api/storage${posterPath}`, demo: false,
+        renderInfo: { version: 1, snapshot: snapshot({ ...moment, script: voice.transcript, captions: true, pictureInPicture: true, campaignId: project.campaignId }),
+          recipe: { source: input.source as { objectPath: string }, segments: input.segments as { start: number; end: number; title: string }[], mode: "commentary", sponsorAudio: sponsorPath } },
       }).onConflictDoNothing({ target: [clips.jobId, clips.momentIndex] });
       await c.query("UPDATE render_reservations SET completed_at=now() WHERE output_key=$1", [outputKey(ctx.job.id, index)]);
       });

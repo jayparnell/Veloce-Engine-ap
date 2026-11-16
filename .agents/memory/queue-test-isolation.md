@@ -8,3 +8,9 @@ Serialize integration suites that exercise real media-worker or publisher adviso
 **Why:** Advisory locks are database-wide, not schema-scoped. Parallel suites can steal each other's available worker slots and produce cascading false failures in concurrency and recovery assertions.
 
 **How to apply:** Use the serial Autopilot test command for the complete suite. Preserve real shared lock namespaces in application code; do not change production locks merely to make parallel tests pass.
+
+Queue fixtures also need their own PostgreSQL schema, not just a random owner.
+
+**Why:** A running development media worker can claim synthetic jobs placed in the public queue, changing their checkpoints and outcomes before the test's owner-filtered worker sees them.
+
+**How to apply:** Create fixture queues in an isolated schema and keep all fixture connections on that search path. Keep database-wide lock serialization as a separate requirement.

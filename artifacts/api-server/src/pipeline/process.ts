@@ -14,6 +14,7 @@ import { ingestVod, sourceToolError, SourceIngestionError, MAX_REMOTE_BYTES } fr
 import { jobContext } from "./job-context";
 import { workspaceRoot as root, mediaPython as python, mediaRenderer as worker } from "./paths";
 import { redactError } from "../lib/failure-policy";
+import { snapshot } from "./render-state";
 
 const workRoot = join(root, "generated-artifacts", "media-work");
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -171,6 +172,12 @@ export async function runMedia(project: Project) {
         pinnedComment: project.mode === "bounty" && campaign?.affiliateUrl ? `${moment.pinnedComment}\nSponsored: ${campaign.affiliateUrl}` : moment.pinnedComment,
         score, hookScore: moment.hookScore, visualScore, commentaryScore, duration,
         objectPath: outputPath, voiceoverObjectPath, captionsObjectPath, videoUrl: `/api/storage${outputPath}`, thumbnail: `/api/storage${posterPath}`, demo: false,
+        renderInfo: { version: 1, snapshot: snapshot({ title: moment.title, hook: moment.hook, script: voice.transcript,
+          hashtags: `${moment.hashtags}${project.mode === "bounty" ? " #ad" : ""}`,
+          pinnedComment: project.mode === "bounty" && campaign?.affiliateUrl ? `${moment.pinnedComment}\nSponsored: ${campaign.affiliateUrl}` : moment.pinnedComment,
+          captions: true, pictureInPicture: true, campaignId: project.campaignId }),
+          recipe: { source: { objectPath }, segments: config.segments, mode: project.mode,
+            sponsorAudio: campaign?.audioPath ?? undefined, watermark: project.mode === "bounty" ? campaign?.watermarkPath ?? undefined : undefined, cta: config.cta } },
       };
     }, { concurrency: 1, retries: 0 });
     await progress(project, 5, 95, "Technical checks complete · human review required");
