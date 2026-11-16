@@ -32,6 +32,10 @@ args = "media-unit"
 task = "workflow.run"
 args = "service-lifecycle"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "publisher-process"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -72,6 +76,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/tests/lifecycle.test.ts"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "publisher-process"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/tests/publisher-process.test.ts"
 
 [workflows.workflow.metadata]
 isValidation = true

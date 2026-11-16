@@ -91,7 +91,20 @@ The handler timer excludes authentication middleware; proxy roundtrip includes a
 
 ## Reproduction and evidence
 
-- Non-billable checks registered for task completion: `typecheck`, `autopilot-unit` (pure planner/slot/provider fixtures), `media-unit`.
+### Non-billable publisher process interruption fixture
+
+Run `pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/tests/publisher-process.test.ts` against the development database. The fixture refuses production mode, creates a unique synthetic owner and future-dated queue entries, and never selects the real due queue. Synthetic authorization expires in 2099 so token refresh is not needed; every child HTTP request is restricted to the X adapter and redirected to a loopback fake provider. Persisted synthetic media checkpoints prevent any App Storage read, render or AI call. Automatic allocation cannot backfill the fixture account because its enablement date is also in the future.
+
+The tests spawn actual child processes using the production `runPublishWork`, poll loop and service lifecycle. They verify:
+
+- SIGTERM during an accepted, held request returns draining health while retaining the health listener; competing binds fail until the request completes and shutdown finishes. A new process reuses the completed effect without a second post, and the original listener port becomes reusable.
+- SIGKILL after provider acceptance preserves PostgreSQL's `started` effect. A new child reports reconciliation required and never repeats the ambiguous mutation or invents a confirmed post ID.
+- SIGKILL after the provider response but before completing the effect checkpoint has the same no-repeat guarantee.
+- SIGKILL after persisting `started` but before sending the request also requires reconciliation. This intentionally favors avoiding duplicates over assuming that no request was sent.
+
+The fake provider counts real loopback POSTs while the parent queries actual persisted checkpoints, so these checks are not just a mocked in-memory effect map. Only rows belonging to the fixture's random owner are removed, including cascading queue rows; no storage objects are created or removed. The development worker can remain running because all fixture queue entries are future-dated. This specifically exercises X final-post effects; it does not claim process-level coverage for every provider, real OAuth, actual remote posting or automatic reconciliation of an uncertain outcome.
+
+- Non-billable checks registered for task completion: `typecheck`, `autopilot-unit` (pure planner/slot/provider fixtures), `media-unit`, `service-lifecycle` and `publisher-process` (isolated PostgreSQL/process interruption fixtures).
 - With the media worker stopped: `pnpm --filter @workspace/scripts run test:autopilot` additionally runs isolated-owner PostgreSQL queue checks and removes only its own rows.
 - `pnpm --filter @workspace/scripts exec tsx src/benchmark-autopilot.ts 1` (or `5`) performs fresh acceptance fixtures while the worker is stopped, immediately cancels them and removes only its own owners' rows.
 - **Paid, explicit fixture only:** from `artifacts/api-server`, run `../../scripts/node_modules/.bin/tsx src/verification/media.ts`. A numeric isolated fixture job argument resumes existing checkpoints. Never run at startup or automatically in validation.
