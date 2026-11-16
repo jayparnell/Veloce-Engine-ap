@@ -9,6 +9,12 @@ Use Replit AI Integrations' built-in `gpt-audio` or `gpt-audio-mini` for voiceov
 
 **How to apply:** Keep transcription, scripting and voiceover calls on the managed AI connection when maintaining the media pipeline. Social-platform OAuth credentials are separate from this AI billing choice.
 
+Usage reporting must distinguish provider metrics, conservative internal request units, and actual Replit credit charges. Never convert tokens or request units into credits or currency without an official supported charge source.
+
+**Why:** Creators need useful limits even when a provider omits usage or a request has an uncertain outcome; a fabricated credit conversion would imply a spending guarantee the app cannot enforce.
+
+**How to apply:** Keep unknown usage explicit, retain uncertain attempts when a creator authorizes a repeat, and describe request-unit limits as additional processing controls rather than exact spending caps.
+
 Managed JSON-object requests must explicitly contain the literal word “JSON” in a message, even when a prompt shows a JSON-shaped example.
 
 **Why:** The provider rejects JSON-object mode with HTTP400 when that word is absent; a syntactically JSON-looking example alone does not meet its precondition.

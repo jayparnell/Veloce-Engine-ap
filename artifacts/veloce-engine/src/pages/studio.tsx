@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { cn } from "@/lib/utils";
 import { PageHeader, Pill, Sk, ErrorState, EmptyState, isActiveStatus, statusTone, errMsg } from "@/components/kit";
+import { AIUsagePanel } from "@/components/ai-usage";
 import { usePack, useDub, PackButton, DubButton, isUncertain, RenderBudgetSettings, FailureDetails } from "@/components/autopilot";
 
 const MAX_SOURCES = 5;
@@ -109,7 +110,7 @@ const CONFIRM: Record<JobActionAction, { title: string; body: string; cta: strin
 export default function Studio() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { isAuthenticated, isLoading: authLoading, login } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, login, user } = useAuth();
   const [text, setText] = useState("");
   const keyRef = useRef<string>(newKey());
   const fileRef = useRef<HTMLInputElement>(null);
@@ -212,6 +213,7 @@ export default function Studio() {
       </section>
 
       {isAuthenticated && <RenderBudgetSettings />}
+      {isAuthenticated && <AIUsagePanel key={user?.id ?? "anon"} />}
       <section className="mt-7">
         <div className="flex items-end justify-between mb-3 gap-3">
           <div>

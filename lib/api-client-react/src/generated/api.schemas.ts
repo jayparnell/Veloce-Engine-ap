@@ -5,6 +5,103 @@
  * Veloce Engine content production API
  * OpenAPI spec version: 1.0.0
  */
+export interface AIUsageLimitInput {
+  /**
+     * @minimum 0
+     * @maximum 10000
+     * @nullable
+     */
+  dailyRequestUnitLimit: number | null;
+}
+
+export interface AIUsageMetrics {
+  /** @nullable */
+  inputTokens: number | null;
+  /** @nullable */
+  outputTokens: number | null;
+  /** @nullable */
+  totalTokens: number | null;
+  /** @nullable */
+  inputAudioTokens: number | null;
+  /** @nullable */
+  outputAudioTokens: number | null;
+  /** @nullable */
+  audioSeconds: number | null;
+}
+
+export type AIUsageEntryCategory = typeof AIUsageEntryCategory[keyof typeof AIUsageEntryCategory];
+
+
+export const AIUsageEntryCategory = {
+  source: 'source',
+  narration: 'narration',
+  es: 'es',
+  pt: 'pt',
+} as const;
+
+export type AIUsageEntryStatus = typeof AIUsageEntryStatus[keyof typeof AIUsageEntryStatus];
+
+
+export const AIUsageEntryStatus = {
+  started: 'started',
+  done: 'done',
+  uncertain: 'uncertain',
+  rejected: 'rejected',
+} as const;
+
+export interface AIUsageEntry {
+  id: number;
+  jobId: number;
+  projectId: number;
+  sourceTitle: string;
+  language: string;
+  category: AIUsageEntryCategory;
+  callKey: string;
+  status: AIUsageEntryStatus;
+  units: number;
+  /** @nullable */
+  model: string | null;
+  metrics: AIUsageMetrics;
+  createdAt: string;
+}
+
+export type AIUsageGroupCategory = typeof AIUsageGroupCategory[keyof typeof AIUsageGroupCategory];
+
+
+export const AIUsageGroupCategory = {
+  source: 'source',
+  narration: 'narration',
+  es: 'es',
+  pt: 'pt',
+} as const;
+
+export interface AIUsageGroup {
+  category: AIUsageGroupCategory;
+  units: number;
+  unknown: number;
+  uncertain: number;
+  metrics: AIUsageMetrics;
+}
+
+export interface AIUsageReport {
+  /** @nullable */
+  dailyRequestUnitLimit: number | null;
+  usedUnits: number;
+  /** @nullable */
+  remainingUnits: number | null;
+  activeJobs: number;
+  activeJobLimit: number;
+  remainingActiveJobs: number;
+  dailyJobs: number;
+  dailyJobLimit: number;
+  remainingDailyJobs: number;
+  groups: AIUsageGroup[];
+  entries: AIUsageEntry[];
+  /** @nullable */
+  nextBefore: number | null;
+  notice: string;
+}
+
 export interface RenderCapInput {
   /**
      * @minimum 0
@@ -504,6 +601,13 @@ export type SocialIntegration = SocialIntegrationInput & {
   connected: boolean;
   canConnect: boolean;
   message: string;
+};
+
+export type GetAutopilotUsageParams = {
+/**
+ * @minimum 1
+ */
+before?: number;
 };
 
 export type LoginParams = {

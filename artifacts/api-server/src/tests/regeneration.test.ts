@@ -45,7 +45,7 @@ before(async () => {
         await c.query(`ALTER TABLE ${table} ALTER COLUMN id SET DEFAULT nextval('${table}_fixture_id')`);
       }
     }
-    for (const migration of ["20261116_autopilot.sql", "20261116_render_guardrails.sql", "20261116_editor_regeneration.sql"]) {
+    for (const migration of ["20261116_autopilot.sql", "20261116_render_guardrails.sql", "20261116_editor_regeneration.sql", "20261116_ai_usage.sql"]) {
       await c.query(await readFile(join(workspaceRoot, "lib/db/migrations", migration), "utf8"));
     }
   } finally { c.release(); }

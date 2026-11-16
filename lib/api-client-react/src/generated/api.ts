@@ -25,6 +25,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AIUsageLimitInput,
+  AIUsageReport,
   AccountPreferences,
   ActionReceipt,
   AuthState,
@@ -39,6 +41,7 @@ import type {
   ExchangeMobileAuthorizationCode200,
   ExportInput,
   ExportResult,
+  GetAutopilotUsageParams,
   HealthStatus,
   JobAction,
   LaunchReceipt,
@@ -92,6 +95,190 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetAutopilotUsageUrl = (params?: GetAutopilotUsageParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/autopilot/usage?${stringifiedParams}` : `/api/autopilot/usage`
+}
+
+export const getAutopilotUsage = async (params?: GetAutopilotUsageParams, options?: Parameters<typeof customFetch>[1]): Promise<AIUsageReport> => {
+
+  return customFetch<AIUsageReport>(getGetAutopilotUsageUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAutopilotUsageQueryKey = (params?: GetAutopilotUsageParams,) => {
+    return [
+    `/api/autopilot/usage`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetAutopilotUsageQueryOptions = <TData = Awaited<ReturnType<typeof getAutopilotUsage>>, TError = ErrorType<void>>(params?: GetAutopilotUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotUsage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAutopilotUsageQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAutopilotUsage>>> = ({ signal }) => getAutopilotUsage(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAutopilotUsage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAutopilotUsageQueryResult = NonNullable<Awaited<ReturnType<typeof getAutopilotUsage>>>
+export type GetAutopilotUsageQueryError = ErrorType<void>
+
+
+export function useGetAutopilotUsage<TData = Awaited<ReturnType<typeof getAutopilotUsage>>, TError = ErrorType<void>>(
+ params: undefined |  GetAutopilotUsageParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotUsage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAutopilotUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getAutopilotUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAutopilotUsage<TData = Awaited<ReturnType<typeof getAutopilotUsage>>, TError = ErrorType<void>>(
+ params?: GetAutopilotUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotUsage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAutopilotUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getAutopilotUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAutopilotUsage<TData = Awaited<ReturnType<typeof getAutopilotUsage>>, TError = ErrorType<void>>(
+ params?: GetAutopilotUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotUsage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetAutopilotUsage<TData = Awaited<ReturnType<typeof getAutopilotUsage>>, TError = ErrorType<void>>(
+ params?: GetAutopilotUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAutopilotUsage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetAutopilotUsageQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAIUsageLimitUrl = () => {
+
+
+
+
+  return `/api/autopilot/usage`
+}
+
+export const updateAIUsageLimit = async (aIUsageLimitInput: AIUsageLimitInput, options?: Parameters<typeof customFetch>[1]): Promise<AIUsageReport> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AIUsageReport>(getUpdateAIUsageLimitUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(aIUsageLimitInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAIUsageLimitMutationKey = () => ['updateAIUsageLimit'] as const;
+
+export const getUpdateAIUsageLimitMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAIUsageLimit>>, TError,UpdateAIUsageLimitMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAIUsageLimit>>, TError,UpdateAIUsageLimitMutationVariables, TContext> => {
+
+const mutationKey = getUpdateAIUsageLimitMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAIUsageLimit>>, UpdateAIUsageLimitMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateAIUsageLimit(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAIUsageLimitMutationResult = NonNullable<Awaited<ReturnType<typeof updateAIUsageLimit>>>
+    export type UpdateAIUsageLimitMutationBody = BodyType<AIUsageLimitInput>
+    export type UpdateAIUsageLimitMutationError = ErrorType<void>
+    export type UpdateAIUsageLimitMutationVariables = {data: BodyType<AIUsageLimitInput>}
+
+    export const useUpdateAIUsageLimit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAIUsageLimit>>, TError,UpdateAIUsageLimitMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateAIUsageLimit>>,
+        TError,
+        UpdateAIUsageLimitMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateAIUsageLimitMutationOptions(options), queryClient);
+    }
 
 export const getGetRenderBudgetUrl = () => {
 

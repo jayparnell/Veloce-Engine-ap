@@ -8,6 +8,122 @@
 import * as zod from 'zod';
 
 
+
+
+
+export const GetAutopilotUsageQueryParams = zod.object({
+  "before": zod.coerce.number().int().min(1).optional()
+})
+
+export const GetAutopilotUsageResponse = zod.object({
+  "dailyRequestUnitLimit": zod.number().int().nullable(),
+  "usedUnits": zod.number().int(),
+  "remainingUnits": zod.number().int().nullable(),
+  "activeJobs": zod.number().int(),
+  "activeJobLimit": zod.number().int(),
+  "remainingActiveJobs": zod.number().int(),
+  "dailyJobs": zod.number().int(),
+  "dailyJobLimit": zod.number().int(),
+  "remainingDailyJobs": zod.number().int(),
+  "groups": zod.array(zod.object({
+  "category": zod.enum(['source', 'narration', 'es', 'pt']),
+  "units": zod.number().int(),
+  "unknown": zod.number().int(),
+  "uncertain": zod.number().int(),
+  "metrics": zod.object({
+  "inputTokens": zod.number().int().nullable(),
+  "outputTokens": zod.number().int().nullable(),
+  "totalTokens": zod.number().int().nullable(),
+  "inputAudioTokens": zod.number().int().nullable(),
+  "outputAudioTokens": zod.number().int().nullable(),
+  "audioSeconds": zod.number().nullable()
+})
+})),
+  "entries": zod.array(zod.object({
+  "id": zod.number().int(),
+  "jobId": zod.number().int(),
+  "projectId": zod.number().int(),
+  "sourceTitle": zod.string(),
+  "language": zod.string(),
+  "category": zod.enum(['source', 'narration', 'es', 'pt']),
+  "callKey": zod.string(),
+  "status": zod.enum(['started', 'done', 'uncertain', 'rejected']),
+  "units": zod.number().int(),
+  "model": zod.string().nullable(),
+  "metrics": zod.object({
+  "inputTokens": zod.number().int().nullable(),
+  "outputTokens": zod.number().int().nullable(),
+  "totalTokens": zod.number().int().nullable(),
+  "inputAudioTokens": zod.number().int().nullable(),
+  "outputAudioTokens": zod.number().int().nullable(),
+  "audioSeconds": zod.number().nullable()
+}),
+  "createdAt": zod.coerce.date()
+})),
+  "nextBefore": zod.number().int().nullable(),
+  "notice": zod.string()
+})
+
+
+export const updateAIUsageLimitBodyDailyRequestUnitLimitMin = 0;
+export const updateAIUsageLimitBodyDailyRequestUnitLimitMax = 10000;
+
+
+
+export const UpdateAIUsageLimitBody = zod.object({
+  "dailyRequestUnitLimit": zod.number().int().min(updateAIUsageLimitBodyDailyRequestUnitLimitMin).max(updateAIUsageLimitBodyDailyRequestUnitLimitMax).nullable()
+})
+
+export const UpdateAIUsageLimitResponse = zod.object({
+  "dailyRequestUnitLimit": zod.number().int().nullable(),
+  "usedUnits": zod.number().int(),
+  "remainingUnits": zod.number().int().nullable(),
+  "activeJobs": zod.number().int(),
+  "activeJobLimit": zod.number().int(),
+  "remainingActiveJobs": zod.number().int(),
+  "dailyJobs": zod.number().int(),
+  "dailyJobLimit": zod.number().int(),
+  "remainingDailyJobs": zod.number().int(),
+  "groups": zod.array(zod.object({
+  "category": zod.enum(['source', 'narration', 'es', 'pt']),
+  "units": zod.number().int(),
+  "unknown": zod.number().int(),
+  "uncertain": zod.number().int(),
+  "metrics": zod.object({
+  "inputTokens": zod.number().int().nullable(),
+  "outputTokens": zod.number().int().nullable(),
+  "totalTokens": zod.number().int().nullable(),
+  "inputAudioTokens": zod.number().int().nullable(),
+  "outputAudioTokens": zod.number().int().nullable(),
+  "audioSeconds": zod.number().nullable()
+})
+})),
+  "entries": zod.array(zod.object({
+  "id": zod.number().int(),
+  "jobId": zod.number().int(),
+  "projectId": zod.number().int(),
+  "sourceTitle": zod.string(),
+  "language": zod.string(),
+  "category": zod.enum(['source', 'narration', 'es', 'pt']),
+  "callKey": zod.string(),
+  "status": zod.enum(['started', 'done', 'uncertain', 'rejected']),
+  "units": zod.number().int(),
+  "model": zod.string().nullable(),
+  "metrics": zod.object({
+  "inputTokens": zod.number().int().nullable(),
+  "outputTokens": zod.number().int().nullable(),
+  "totalTokens": zod.number().int().nullable(),
+  "inputAudioTokens": zod.number().int().nullable(),
+  "outputAudioTokens": zod.number().int().nullable(),
+  "audioSeconds": zod.number().nullable()
+}),
+  "createdAt": zod.coerce.date()
+})),
+  "nextBefore": zod.number().int().nullable(),
+  "notice": zod.string()
+})
+
+
 export const GetRenderBudgetResponse = zod.object({
   "dailyRenderCap": zod.number().int(),
   "completed": zod.number().int(),

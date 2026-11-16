@@ -26,7 +26,7 @@ before(async () => {
         await c.query(`ALTER TABLE ${table} ALTER COLUMN id SET DEFAULT nextval('${table}_fixture_id')`);
       }
     }
-    for (const name of ["20261116_autopilot.sql", "20261116_render_guardrails.sql", "20261116_editor_regeneration.sql"]) {
+    for (const name of ["20261116_autopilot.sql", "20261116_render_guardrails.sql", "20261116_editor_regeneration.sql", "20261116_ai_usage.sql"]) {
       await c.query(await readFile(new URL(`../../../../lib/db/migrations/${name}`, import.meta.url), "utf8"));
     }
   } finally { c.release(); }
@@ -45,14 +45,22 @@ async function createJob(requestKey = randomUUID()) {
 test("actual PostgreSQL worker slots cap live jobs at five and recover checkpoints", async () => {
   const work = await Promise.all(Array.from({ length: 7 }, () => createJob()));
   let active = 0, maximum = 0;
+  let allStarted!: () => void;
+  const gate = new Promise<void>((resolve) => { allStarted = resolve; });
+  const timeout = setTimeout(allStarted, 5000);
   const runner = async (ctx: JobContext) => {
     active++; maximum = Math.max(maximum, active);
+    if (active === GLOBAL_SOURCE_LIMIT) allStarted();
+    // Real owner-budget transactions can serialize startup. Hold the runners instead
+    // of assuming that all five enter within an arbitrary 100 ms.
+    await gate;
     await ctx.ai("fixture-analysis", async () => ({ text: "Saved evidence" }));
     await ctx.save("fixtureAsset", { objectPath: "/objects/synthetic-checkpoint" });
     await new Promise((r) => setTimeout(r, 100));
     active--;
   };
   await Promise.all(Array.from({ length: 10 }, (_, i) => runSlot(i % GLOBAL_SOURCE_LIMIT, runner, owner)));
+  clearTimeout(timeout);
   assert.equal(maximum, 5);
   const first = work.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id - b.id)[0]!;
   await db.update(jobs).set({ status: "processing", leaseToken: "interrupted-fixture", leaseUntil: new Date(Date.now() - 10000) }).where(eq(jobs.id, first.id));

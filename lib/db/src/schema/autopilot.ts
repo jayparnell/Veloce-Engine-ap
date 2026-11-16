@@ -4,6 +4,26 @@ import { createInsertSchema } from "drizzle-zod";
 import { projectsTable, generatedClipsTable } from "./production";
 
 export type Checkpoint = Record<string, unknown>;
+export type AIUsageMetrics = {
+  inputTokens: number | null; outputTokens: number | null; totalTokens: number | null;
+  inputAudioTokens: number | null; outputAudioTokens: number | null; audioSeconds: number | null;
+};
+// No media foreign keys: usage and uncertain attempts survive deletion and acknowledged retries.
+export const aiUsageTable = pgTable("autopilot_ai_usage", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  jobId: integer("job_id").notNull(),
+  projectId: integer("project_id").notNull(),
+  sourceTitle: text("source_title").notNull(),
+  language: text("language").notNull(),
+  category: text("category").notNull(),
+  callKey: text("call_key").notNull(),
+  status: text("status").notNull().default("started"),
+  units: integer("units").notNull().default(1),
+  model: text("model"),
+  metrics: jsonb("metrics").$type<AIUsageMetrics>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("ai_usage_owner_recent").on(t.ownerId, t.createdAt), index("ai_usage_job").on(t.jobId)]);
 // Intentionally no media foreign keys: deleting a clip/project cannot reset daily usage or replay a paid launch.
 export const autopilotAdmissionsTable = pgTable("autopilot_admissions", {
   id: serial("id").primaryKey(),
@@ -50,6 +70,7 @@ export const aiCheckpointsTable = pgTable("autopilot_ai_calls", {
   callKey: text("call_key").notNull(),
   status: text("status").notNull(),
   result: jsonb("result").$type<Checkpoint>(),
+  usageId: integer("usage_id"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("autopilot_ai_call").on(t.jobId, t.callKey)]);
 
@@ -101,6 +122,7 @@ export const workerServicesTable = pgTable("autopilot_services", {
 export const automationSettingsTable = pgTable("automation_settings", {
   ownerId: text("owner_id").primaryKey(),
   dailyRenderCap: integer("daily_render_cap").notNull().default(15),
+  dailyRequestUnitLimit: integer("daily_request_unit_limit"),
 });
 // No media foreign keys: deleting media must not refund completed output usage.
 export const renderReservationsTable = pgTable("render_reservations", {

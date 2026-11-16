@@ -7,6 +7,7 @@ import { JobContext, jobContext, JobStoppedError, UncertainCallError, AIRequestR
 import { startPollLoop, type PollObserver } from "../lib/poll-loop";
 import { reserveOutputs, releaseOutputs, RenderBudgetPaused } from "../lib/render-budget";
 import { redactError, nextFailure, permanentMediaFailure } from "../lib/failure-policy";
+import { AIUsagePaused } from "../lib/ai-usage";
 
 export const GLOBAL_SOURCE_LIMIT = 5;
 const running = new Set<Promise<void>>();
@@ -56,7 +57,7 @@ export async function runSlot(slot: number, run = runAutopilot, onlyOwner: strin
         : error instanceof UncertainCallError || pendingAI ? "uncertain"
         : stopped ? "queued" : error instanceof RenderBudgetPaused ? "budget_paused"
         : error instanceof AIRequestRejectedError && error.status !== 429 || permanentMediaFailure(error) ? "failed" : retry.status;
-      const failureKind = status === "uncertain" || pendingAI ? "uncertain_ai" : status === "budget_paused" ? "daily_cap"
+      const failureKind = status === "uncertain" || pendingAI ? "uncertain_ai" : error instanceof AIUsagePaused ? "ai_usage_cap" : status === "budget_paused" ? "daily_cap"
         : error instanceof AIRequestRejectedError && error.status === 429 ? "rate_limited"
         : status === "failed" && retry.count < 2 ? "permanent" : status === "failed" ? "retry_exhausted" : "transient";
       const message = redactError(status === "uncertain" && !(error instanceof UncertainCallError)

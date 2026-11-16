@@ -52,6 +52,7 @@ export function FailureDetails({ status, kind, count = 0, retryAt }: { status: s
     access_blocked: "Reconnect or resolve account access before resuming.",
     permanent: "Correct source, media, validation or account restrictions before requesting another attempt.",
     daily_cap: "Waiting for clip allowance. Raise the cap or wait for midnight EST (fixed UTC-05:00).",
+    ai_usage_cap: "Waiting for rolling 24-hour AI request allowance. Increase the AI request-unit cap or wait for usage to expire; saved results are reused.",
     retry_exhausted: "Automatic retries stopped after two failed attempts. Saved clips and checkpoints are preserved.",
     rate_limited: status === "failed" ? "Automatic retry exhausted. Honor the provider restriction before any explicit repeat." : "Provider rate limit: the retry will honor Retry-After.",
     transient: "Saved results will be reused; other queued work continues.",

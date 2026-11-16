@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
-import { db, autopilotJobsTable as jobs, projectsTable, generatedClipsTable as clips, mediaUploadsTable, aiCheckpointsTable, socialAccountsTable as accounts, publishQueueTable, workerServicesTable, campaignsTable, autopilotAdmissionsTable as admissions } from "@workspace/db";
+import { db, autopilotJobsTable as jobs, projectsTable, generatedClipsTable as clips, mediaUploadsTable, aiCheckpointsTable, aiUsageTable, socialAccountsTable as accounts, publishQueueTable, workerServicesTable, campaignsTable, autopilotAdmissionsTable as admissions } from "@workspace/db";
 import { eq, and, or, desc, inArray, sql, isNotNull } from "drizzle-orm";
 import { LaunchAutopilotBody, LaunchAutopilotResponse, GetAutopilotSwarmResponse, ControlAutopilotJobBody, ControlAutopilotJobParams, CloneAndDubBody, GetAutopilotAccountsResponse, UpdateAutopilotAccountBody, UpdateAutopilotAccountParams, UpdateAutopilotAccountResponse, DisconnectAutopilotAccountParams, GetAutopilotScheduleResponse } from "@workspace/api-zod";
 import { validSource } from "./studio";
@@ -11,6 +11,8 @@ import { autopilotUsage } from "../lib/autopilotQuota";
 import { budgetTransaction, budgetStatus, setRenderCap, RenderCapConflict } from "../lib/render-budget";
 import { GetRenderBudgetResponse, UpdateRenderBudgetBody, UpdateRenderBudgetResponse } from "@workspace/api-zod";
 import { redactError } from "../lib/failure-policy";
+import { GetAutopilotUsageQueryParams, GetAutopilotUsageResponse, UpdateAIUsageLimitBody, UpdateAIUsageLimitResponse } from "@workspace/api-zod";
+import { usageReport, setUsageLimit } from "../lib/ai-usage";
 
 const router: IRouter = Router();
 router.use("/autopilot", (req, res, next) => {
@@ -20,6 +22,16 @@ router.use("/autopilot", (req, res, next) => {
 });
 const digest = (data: unknown) => createHash("sha256").update(JSON.stringify(data)).digest("hex");
 class InputError extends Error { constructor(message: string, public code = 400) { super(message); } }
+router.get("/autopilot/usage", async (req, res): Promise<void> => {
+  const input = GetAutopilotUsageQueryParams.safeParse(req.query);
+  if (!input.success) { res.status(400).json({ error: "Invalid usage history cursor." }); return; }
+  res.json(GetAutopilotUsageResponse.parse(await usageReport(req.workspaceId, input.data.before)));
+});
+router.patch("/autopilot/usage", async (req, res): Promise<void> => {
+  const input = UpdateAIUsageLimitBody.safeParse(req.body);
+  if (!input.success) { res.status(400).json({ error: "Use a whole request-unit limit from 0 to 10000, or null for no additional limit." }); return; }
+  res.json(UpdateAIUsageLimitResponse.parse(await setUsageLimit(req.workspaceId, input.data.dailyRequestUnitLimit)));
+});
 router.get("/autopilot/render-budget", async (req, res): Promise<void> => {
   res.json(GetRenderBudgetResponse.parse(await budgetTransaction(req.workspaceId, (c) => budgetStatus(c, req.workspaceId))));
 });
@@ -108,7 +120,13 @@ router.post("/autopilot/jobs/:id/action", async (req, res): Promise<void> => {
        if (unfinished && input.data.action !== "acknowledge-uncertain") return { code: 409, message: "A cancelled or failed job still has an uncertain AI request. Acknowledge possible usage before repeating it." };
       const usage = await tx.execute(autopilotUsage(req.workspaceId));
       if (job.status !== "uncertain" && Number(usage.rows[0]?.active) >= 10) return { code: 429, message: "Ten jobs are already active. Wait before reactivating another source." };
-      if (input.data.action === "acknowledge-uncertain") await tx.delete(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, job.id), eq(aiCheckpointsTable.status, "started")));
+      if (input.data.action === "acknowledge-uncertain") {
+        // Preserve the earlier potentially charged attempt when authorizing a new one.
+        const pending = await tx.select().from(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, job.id), eq(aiCheckpointsTable.status, "started")));
+        const ids = pending.flatMap((c) => c.usageId == null ? [] : [c.usageId]);
+        if (ids.length) await tx.update(aiUsageTable).set({ status: "uncertain" }).where(and(eq(aiUsageTable.ownerId, req.workspaceId), inArray(aiUsageTable.id, ids)));
+        await tx.delete(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, job.id), eq(aiCheckpointsTable.status, "started")));
+      }
        await tx.update(jobs).set({ status: "queued", error: null, retryAt: null, failureKind: null, cancelRequested: false, leaseToken: null, leaseUntil: null }).where(eq(jobs.id, job.id));
     }
     return { code: 200, message: input.data.action === "cancel" ? "Cancellation requested. Completed clips are preserved." : "Job queued with saved results. Unfinished acknowledged AI calls may incur new usage." };

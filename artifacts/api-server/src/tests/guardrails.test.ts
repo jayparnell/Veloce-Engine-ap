@@ -34,6 +34,7 @@ before(async () => {
     }
     await c.query(await readFile(new URL("../../../../lib/db/migrations/20261116_autopilot.sql", import.meta.url), "utf8"));
     await c.query(await readFile(new URL("../../../../lib/db/migrations/20261116_render_guardrails.sql", import.meta.url), "utf8"));
+    await c.query(await readFile(new URL("../../../../lib/db/migrations/20261116_ai_usage.sql", import.meta.url), "utf8"));
   } finally { c.release(); }
 });
 after(async () => {

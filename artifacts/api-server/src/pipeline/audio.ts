@@ -2,6 +2,7 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { speechToText } from "@workspace/integrations-openai-ai-server/audio";
 import { batchProcess } from "@workspace/integrations-openai-ai-server/batch";
 import { readFile } from "node:fs/promises";
+import { captureManagedUsage } from "../lib/ai-usage";
 
 export async function transcribeSource(chunks: { path: string; start: number; end: number }[]) {
   return batchProcess(chunks, async (chunk) => {
@@ -22,6 +23,7 @@ export async function synthesizeVoiceover(script: string, language = "en", signa
         { role: "user", content: text },
       ],
      }, { timeout: 120000, maxRetries: 0, signal });
+    await captureManagedUsage(response, "gpt-audio");
     const audio = response.choices[0]?.message.audio;
     if (!audio?.data) throw new Error("Voiceover synthesis returned no audio. Retry this batch.");
     const bytes = Buffer.from(audio.data, "base64");
