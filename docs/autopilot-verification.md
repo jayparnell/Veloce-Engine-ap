@@ -18,6 +18,16 @@
 
 ## Services, migrations and prerequisites
 
+### Worker readiness
+
+`/worker-healthz` returns HTTP 200 only after both the media and publisher queue polls have succeeded recently. A database/poll failure immediately returns 503 with a fixed, safe error rather than an exception, job identifier or connection string. The response includes each poll's last start, success and failure timestamps (Unix milliseconds), current polling flag and freshness window.
+
+Media readiness expires after 30 seconds without success; publisher readiness expires after 150 seconds, allowing its unchanged 60-second polling cadence. Startup is not ready until the first successful polls. A stalled poll cannot refresh its own success timestamp, and publisher heartbeats no longer imply readiness when the publishing poll has failed or become stale. Successful subsequent polls restore readiness without restarting the service.
+
+Shutdown reports `state: draining`, `ready: false` and HTTP 503 while retaining listener ownership until in-flight work finishes. `running: true` alone is not readiness. Health responses are not cached; the health endpoint performs no database queries or external API calls. Existing dashboard service heartbeats remain an eventually consistent indication rather than a substitute for this local readiness endpoint.
+
+Non-billable regressions: `pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/tests/worker-readiness.test.ts ../artifacts/api-server/src/tests/lifecycle.test.ts`. These simulate database failures and recovery without shutting down the real database, rendering media, or posting content.
+
 1. Apply the additive migration to the intended database with `pnpm --filter @workspace/db run migrate:autopilot`. It is transaction/advisory-lock protected and safe to repeat. It does not replace the database or rewrite historical media/session rows.
 2. Run the managed `artifacts/api-server: API Server` and **`artifacts/api-server: Media and Publisher`** services. The latter owns both recoverable media work and the 60-second publisher, independently of API restarts. It exposes `/worker-healthz`; the schedule UI also checks durable heartbeats instead of assuming a configured service is running.
 3. Continuous scheduling needs a continuously running host. Autoscale can stop at idle; a development workspace can sleep. A configured polling timer is not an uptime guarantee. Replit documents Reserved VM as continuously running: <https://docs.replit.com/features/publishing/deployment-types>. Nothing in this task publishes the app or purchases hosting.

@@ -5,7 +5,7 @@ import { logger } from "../lib/logger";
 import { runAutopilot } from "./autopilot-process";
 import { JobContext, jobContext, JobStoppedError, UncertainCallError, AIRequestRejectedError } from "./job-context";
 import { SourceIngestionError } from "./ingestion";
-import { startPollLoop } from "../lib/poll-loop";
+import { startPollLoop, type PollObserver } from "../lib/poll-loop";
 
 export const GLOBAL_SOURCE_LIMIT = 5;
 const running = new Set<Promise<void>>();
@@ -72,11 +72,9 @@ export async function adoptLegacyJobs() {
     FROM projects p WHERE p.status IN ('queued','processing') AND p.demo=false
     AND NOT EXISTS (SELECT 1 FROM autopilot_jobs j WHERE j.project_id=p.id) ON CONFLICT DO NOTHING`);
 }
-export function startPipelineWorker() {
+export function startPipelineWorker(observer?: PollObserver) {
   stopping = false;
   const tick = async () => {
-    if (stopping) return;
-    await serviceHeartbeat("media");
     if (stopping) return;
     await adoptLegacyJobs();
     if (stopping) return;
@@ -91,8 +89,10 @@ export function startPipelineWorker() {
       const promise = runSlot(slot).finally(() => { running.delete(promise); localSlots.delete(slot); });
       running.add(promise);
     }
+    // A bound listener or a heartbeat alone is not evidence that queue polling works.
+    await serviceHeartbeat("media");
   };
-  const stopPolling = startPollLoop(tick, 2000, () => logger.error("Media worker polling failed"));
+  const stopPolling = startPollLoop(tick, 2000, () => logger.error("Media worker polling failed"), observer);
   return async () => {
     stopping = true;
     await stopPolling();

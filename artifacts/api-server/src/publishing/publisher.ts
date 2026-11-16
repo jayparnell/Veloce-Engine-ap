@@ -9,6 +9,7 @@ import { PROVIDERS, providerOf, ProviderError } from "./providers";
 import { publishAdapter, ReconciliationRequired, ReviewRequired, type AdapterContext } from "./adapters";
 import { assignReadyClips } from "./allocator";
 import { startPollLoop } from "../lib/poll-loop";
+import { pollReadiness } from "../lib/worker-readiness";
 
 export async function runPublishWork(work: PublishWork, transport: typeof fetch = fetch) {
   const [account] = await db.select().from(accounts).where(eq(accounts.id, work.accountId));
@@ -100,10 +101,19 @@ export async function publisherTick(shouldStop = () => false) {
     connection.release();
   }
 }
-export function startPublisher() {
+export function startPublisher(readiness = pollReadiness(150000)) {
   let stopping = false;
-  const stopHeartbeat = startPollLoop(() => serviceHeartbeat("publisher"), 30000, () => logger.error("Publisher heartbeat failed"));
-  const stopPolling = startPollLoop(() => publisherTick(() => stopping), 60000, () => logger.error("Publisher poll failed"));
+  const stopHeartbeat = startPollLoop(async () => {
+    // Do not let the independent heartbeat hide stalled or failed queue polling.
+    if (readiness.snapshot().ready) await serviceHeartbeat("publisher");
+  }, 30000, () => {
+    readiness.observer.failed();
+    logger.error("Publisher heartbeat failed");
+  });
+  const stopPolling = startPollLoop(async () => {
+    await publisherTick(() => stopping);
+    if (!stopping) await serviceHeartbeat("publisher");
+  }, 60000, () => logger.error("Publisher poll failed"), readiness.observer);
   return async () => {
     stopping = true;
     await Promise.all([stopPolling(), stopHeartbeat()]);

@@ -4,19 +4,24 @@ import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
 import { createServer } from "node:http";
 import { serviceLifecycle, servicePort } from "./lib/service-lifecycle";
+import { workerReadiness } from "./lib/worker-readiness";
 
 const port = servicePort();
+const readiness = workerReadiness();
 let stopMedia: (() => Promise<void>) | undefined;
 let stopPublisher: (() => Promise<void>) | undefined;
 const health = createServer((req, res) => {
-  res.writeHead(req.url !== "/worker-healthz" ? 404 : lifecycle.stopping ? 503 : 200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ running: !lifecycle.stopping, scheduling: "Only while this service runs; not an uptime guarantee." }));
+  const snapshot = readiness.response(lifecycle.stopping);
+  res.writeHead(req.url !== "/worker-healthz" ? 404 : snapshot.status, {
+    "Content-Type": "application/json", "Cache-Control": "no-store",
+  });
+  res.end(JSON.stringify(req.url === "/worker-healthz" ? snapshot.body : { error: "Not found." }));
 });
 const lifecycle = serviceLifecycle(health, {
   port,
   start: () => {
-    stopMedia = startPipelineWorker();
-    stopPublisher = startPublisher();
+    stopMedia = startPipelineWorker(readiness.media.observer);
+    stopPublisher = startPublisher(readiness.publisher);
     logger.info({ port }, "Dedicated media worker and 60-second publisher started; only active while this service runs");
   },
   drain: async () => {
