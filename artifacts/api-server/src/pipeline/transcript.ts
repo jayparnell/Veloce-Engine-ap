@@ -1,4 +1,5 @@
 import { metadataArguments, SourceIngestionError, MAX_SOURCE_SECONDS, MAX_REMOTE_BYTES } from "./ingestion";
+import { withCaptionResponse } from "./youtube-network";
 
 export type Segment = { start: number; end: number; text: string };
 /** Add real surrounding context to a short proposed window; never trim its evidence or exceed coverage. */
@@ -50,7 +51,7 @@ export function parseTimedText(body: string, duration: number): Segment[] {
   }
   return segments.sort((a, b) => a.start - b.start).slice(0, 12000);
 }
-export async function accessibleCaptions(meta: SourceMetadata): Promise<Segment[]> {
+export async function accessibleCaptions(meta: SourceMetadata, consumeResponse = withCaptionResponse): Promise<Segment[]> {
   const tracks = { ...meta.automatic_captions, ...meta.subtitles };
   const keys = Object.keys(tracks).sort((a, b) => Number(!a.startsWith("en")) - Number(!b.startsWith("en")));
   for (const key of keys.slice(0, 3)) {
@@ -59,18 +60,19 @@ export async function accessibleCaptions(meta: SourceMetadata): Promise<Segment[
     try {
       const url = new URL(track.url), host = url.hostname;
       if (url.protocol !== "https:" || url.username || url.password || url.port || !["youtube.com", "googlevideo.com", "twitch.tv", "ttvnw.net", "kick.com"].some((h) => host === h || host.endsWith(`.${h}`))) continue;
-      const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(8000) });
-      if (!response.ok) continue;
-      // Enforce the byte limit during transfer, not just from an optional length header.
-      if (Number(response.headers.get("content-length")) > 4_000_000) continue;
-      const reader = response.body?.getReader();
-      if (!reader) continue;
-      let text = "", bytes = 0;
-      const decoder = new TextDecoder();
-      try {
-        for (;;) { const next = await reader.read(); if (next.done) break; bytes += next.value.length; if (bytes > 4_000_000) throw new Error("Caption size limit"); text += decoder.decode(next.value, { stream: true }); }
-      } finally { await reader.cancel(); }
-       const segments = track.ext === "json3" ? parseJson3(JSON.parse(text), meta.duration) : parseTimedText(text, meta.duration);
+      const segments = await consumeResponse(url, async response => {
+        if (!response.ok) return [];
+        // Enforce the byte limit during transfer, not just from an optional length header.
+        if (Number(response.headers.get("content-length")) > 4_000_000) return [];
+        const reader = response.body?.getReader();
+        if (!reader) return [];
+        let text = "", bytes = 0;
+        const decoder = new TextDecoder();
+        try {
+          for (;;) { const next = await reader.read(); if (next.done) break; bytes += next.value.length; if (bytes > 4_000_000) throw new Error("Caption size limit"); text += decoder.decode(next.value, { stream: true }); }
+        } finally { await reader.cancel(); reader.releaseLock(); }
+        return track.ext === "json3" ? parseJson3(JSON.parse(text), meta.duration) : parseTimedText(text, meta.duration);
+      });
       if (segments.length) return segments;
     } catch { /* Missing/inaccessible captions disclose a bounded audio fallback. */ }
   }

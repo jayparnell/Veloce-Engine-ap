@@ -9,3 +9,4 @@
 - [Cleanup reservations](storage-cleanup-reservations.md) — reserve paths before deletion; never auto-release or replay uncertain operations, even when provider locks are no longer held.
 - [Unified posting safety](unified-posting-safety.md) — Late is now Zernio; use canonical hosts without redirects and bind the shared posting key to an explicit owner.
 - [YouTube watch admission](youtube-watch-policy.md) — preserve manual workflows; pending discovery must survive budget limits and bounded RSS windows.
+- [YouTube ingestion network](youtube-ingestion-network.md) — user-approved proxy/cookie routing overrides older no-proxy assumptions; preserve consistent egress and redact credentials.

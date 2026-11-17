@@ -1,11 +1,24 @@
 /** Shared by persisted errors and logs. Never log provider payloads, tokens or signed URLs. */
-export function redactError(error: unknown) {
-  return (error instanceof Error ? error.message : "Unknown failure")
+export function redactError(error: unknown, env: { PROXY_URL?: string } = process.env) {
+  let message = error instanceof Error ? error.message : "Unknown failure";
+  // A bounded stderr buffer can start midway through a credential-bearing URL.
+  // Remove its configured password too, not just complete URL-shaped strings.
+  if (env.PROXY_URL) {
+    message = message.split(env.PROXY_URL).join("[redacted proxy]");
+    try {
+      const password = new URL(env.PROXY_URL).password;
+      for (const value of new Set([password, decodeURIComponent(password)])) {
+        if (value) message = message.split(value).join("[redacted]");
+      }
+    } catch { /* Invalid proxy input is rejected without echoing its value. */ }
+  }
+  return message
     .replace(/\x1b\[[0-9;]*m/g, "")
-    .replace(/https?:\/\/[^\s"'<>]+/gi, "[redacted URL]")
+    .replace(/(?:https?|socks4a?|socks5h?):\/\/[^\s"'<>]+/gi, "[redacted URL]")
     .replace(/(?:\/home\/|\/tmp\/)[^\s"'<>]+/g, "[local file]")
     .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, "$1 [redacted]")
-    .replace(/(["']?(?:access[_-]?token|refresh[_-]?token|api[_-]?key|client[_-]?secret|authorization|password|cookie|signature)["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}]+)/gi, "$1[redacted]")
+    .replace(/(["']?(?:access[_-]?token|refresh[_-]?token|api[_-]?key|client[_-]?secret|authorization|password|cookie|proxy_url|youtube_cookies|signature)["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}]+)/gi, "$1[redacted]")
+    .replace(/^.*\t(?:TRUE|FALSE)\t.*$/gm, "[redacted cookie entry]")
     .replace(/\bsk-[A-Za-z0-9_-]+/g, "[redacted key]")
     .slice(0, 1800);
 }

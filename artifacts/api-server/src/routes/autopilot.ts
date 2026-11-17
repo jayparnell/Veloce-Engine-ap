@@ -135,7 +135,7 @@ router.post("/autopilot/jobs/:id/action", async (req, res): Promise<void> => {
         if (ids.length) await tx.update(aiUsageTable).set({ status: "uncertain" }).where(and(eq(aiUsageTable.ownerId, req.workspaceId), inArray(aiUsageTable.id, ids)));
         await tx.delete(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, job.id), eq(aiCheckpointsTable.status, "started")));
       }
-       await tx.update(jobs).set({ status: "queued", error: null, retryAt: null, failureKind: null, cancelRequested: false, leaseToken: null, leaseUntil: null }).where(eq(jobs.id, job.id));
+       await tx.update(jobs).set({ status: "queued", failures: 0, error: null, retryAt: null, failureKind: null, cancelRequested: false, leaseToken: null, leaseUntil: null, updatedAt: new Date() }).where(eq(jobs.id, job.id));
     }
     return { code: 200, message: input.data.action === "cancel" ? "Cancellation requested. Completed clips are preserved." : "Job queued with saved results. Unfinished acknowledged AI calls may incur new usage." };
   });

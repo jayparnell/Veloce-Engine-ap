@@ -265,6 +265,26 @@ test("budget API persists owner settings, rejects invalid/lower caps and protect
     assert.equal((await request("/autopilot/render-budget", "PATCH", { dailyRenderCap: 7 })).status, 200);
     assert.equal(GetRenderBudgetResponse.parse(await (await request("/autopilot/render-budget")).json()).dailyRenderCap, 7);
     assert.equal(GetRenderBudgetResponse.parse(await (await request("/autopilot/render-budget", "GET", undefined, other)).json()).dailyRenderCap, 15);
+    // Explicit owner Retry starts a fresh failure allowance without waiting for the
+    // previous automatic backoff, preserving saved work and uncertain-AI safeguards.
+    const retryOwner = `retry-fixture-${randomUUID()}`;
+    const retryJob = await makeJob(retryOwner, false);
+    await db.update(jobs).set({ status: "failed", failures: 2, failureKind: "permanent",
+      error: "Sign in to confirm you're not a bot", checkpoint: { retained: "saved-result" } }).where(eq(jobs.id, retryJob.id));
+    assert.equal((await request(`/autopilot/jobs/${retryJob.id}/action`, "POST", { action: "retry" }, retryOwner)).status, 200);
+    const queued = await getJob(retryJob.id);
+    assert.equal(queued.status, "queued"); assert.equal(queued.failures, 0);
+    assert.equal(queued.retryAt, null); assert.equal(queued.error, null); assert.equal(queued.failureKind, null);
+    assert.equal(queued.checkpoint.retained, "saved-result");
+    let immediate = false;
+    await runSlot(4, async ctx => {
+      immediate = true;
+      assert.equal(ctx.job.id, retryJob.id); assert.equal(ctx.job.failures, 0);
+      throw new Error("Temporary fixture ingestion failure");
+    }, retryOwner);
+    assert.equal(immediate, true);
+    assert.equal((await getJob(retryJob.id)).status, "retry");
+    assert.equal((await getJob(retryJob.id)).failures, 1);
     for (const cap of [-1, 1.5, 1001, "abc"]) assert.equal((await request("/autopilot/render-budget", "PATCH", { dailyRenderCap: cap })).status, 400);
     const j = await makeJob(o);
     await reserveOutputs(o, j.id, 5, j.leaseToken!);
