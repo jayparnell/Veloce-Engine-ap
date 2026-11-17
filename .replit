@@ -52,6 +52,10 @@ args = "storage-retention"
 task = "workflow.run"
 args = "unified-posting"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "youtube-feeds"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -147,6 +151,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/scripts exec tsx --test --test-concurrency=1 ../artifacts/api-server/src/tests/unified-posting.test.ts"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "youtube-feeds"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/scripts exec tsx --test --test-concurrency=1 ../artifacts/api-server/src/tests/youtube-feeds.test.ts"
 
 [workflows.workflow.metadata]
 isValidation = true

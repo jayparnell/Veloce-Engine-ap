@@ -5,6 +5,55 @@
  * Veloce Engine content production API
  * OpenAPI spec version: 1.0.0
  */
+export interface YoutubeFeedInput {
+  /**
+     * @minLength 1
+     * @maxLength 512
+     */
+  source: string;
+  authorizedUse: true;
+}
+
+export interface YoutubeFeedPreferences {
+  paused: boolean;
+}
+
+export type YoutubeFeedKind = typeof YoutubeFeedKind[keyof typeof YoutubeFeedKind];
+
+
+export const YoutubeFeedKind = {
+  channel: 'channel',
+  playlist: 'playlist',
+} as const;
+
+export interface YoutubeFeed {
+  id: number;
+  kind: YoutubeFeedKind;
+  providerId: string;
+  feedUrl: string;
+  title: string;
+  paused: boolean;
+  /** @nullable */
+  baselineAt: string | null;
+  /** @nullable */
+  lastCheckedAt: string | null;
+  /** @nullable */
+  lastSuccessAt: string | null;
+  nextPollAt: string;
+  /** @nullable */
+  error: string | null;
+  pendingCount: number;
+  budgetDeferredCount: number;
+  /** @nullable */
+  deferredUntil: string | null;
+}
+
+export interface YoutubeFeedReport {
+  feeds: YoutubeFeed[];
+  serviceRunning: boolean;
+  message: string;
+}
+
 export type UnifiedSelectionProvider = typeof UnifiedSelectionProvider[keyof typeof UnifiedSelectionProvider];
 
 

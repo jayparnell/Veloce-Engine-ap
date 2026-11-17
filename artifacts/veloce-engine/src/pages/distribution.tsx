@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { TikTokReviewDialog } from "@/components/tiktok-review";
 import { RenderBudgetSettings, FailureDetails } from "@/components/autopilot";
 import { UnifiedPostingSettings } from "@/components/unified-posting";
+import { YoutubeFeeds } from "@/components/youtube-feeds";
 import { PageHeader, Pill, DemoTag, Sk, ErrorState, EmptyState, statusTone, errMsg, btn, field } from "@/components/kit";
 
 const PLATFORMS: ScheduleInputPlatform[] = ["YouTube Shorts", "TikTok", "Instagram Reels", "X"];
@@ -205,6 +206,7 @@ export default function Distribution() {
 
       <RenderBudgetSettings />
       <UnifiedPostingSettings />
+      <YoutubeFeeds />
       <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-5">
         <section className="space-y-3 min-w-0">
           <h2 className="text-[13px] font-semibold">Accounts</h2>

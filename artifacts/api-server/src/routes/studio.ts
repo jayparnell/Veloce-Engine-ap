@@ -10,6 +10,7 @@ import { buildExport } from "../pipeline/export";
 import { getCapabilities } from "../lib/capabilities";
 import { publicClip, renderInfo } from "../pipeline/render-state";
 import regenerationRouter from "./regeneration";
+import { DuplicateYoutubeSource, recordYoutubeSubmission } from "../lib/youtube-source-identity";
 
 const router: IRouter = Router();
 router.use(regenerationRouter);
@@ -61,7 +62,8 @@ router.post("/projects", async (req, res): Promise<void> => {
     if (!campaign || campaign.status !== "active") { res.status(400).json({ error: "Choose an active campaign in your workspace." }); return; }
   }
   if (input.mode === "bounty" && !input.campaignId) { res.status(400).json({ error: "Select a sponsor campaign for Bounty mode." }); return; }
-  const created = await db.transaction(async (tx) => {
+  let created;
+  try { created = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${req.workspaceId}))`);
     const usage = await tx.execute(autopilotUsage(req.workspaceId));
     if (Number(usage.rows[0]?.daily) >= 20 || Number(usage.rows[0]?.active) >= 10) return null;
@@ -72,10 +74,14 @@ router.post("/projects", async (req, res): Promise<void> => {
       sourceUrl: input.sourceUrl, mode: input.mode, clipCount: input.clipCount, campaignId: input.campaignId,
       demo: !!input.demo,
     }).returning();
+    if (!input.demo) await recordYoutubeSubmission(tx, req.workspaceId, input.sourceUrl, row!.id, null);
     if (!input.demo) await tx.insert(autopilotAdmissionsTable).values({ ownerId: req.workspaceId, requestKey: `legacy:${row!.id}`, inputHash: "legacy", projectId: row!.id });
     await tx.insert(analyticsLogsTable).values({ ownerId: req.workspaceId, message: `${input.demo ? "Demo" : "Media"} batch queued with ${input.clipCount} clips.` });
     return row;
-  });
+  }); } catch (error) {
+    if (!(error instanceof DuplicateYoutubeSource)) throw error;
+    res.status(409).json({ error: error.message }); return;
+  }
   if (!created) { res.status(429).json({ error: "Workspace queue or daily quota reached. Wait before launching again." }); return; }
   res.status(201).json(CreateProjectResponse.parse(jsonDates(created)));
 });

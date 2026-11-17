@@ -25,3 +25,4 @@ export * from "./uploads";
 export * from "./social";
 export * from "./autopilot";
 export * from "./storage-cleanup";
+export * from "./youtube-feeds";

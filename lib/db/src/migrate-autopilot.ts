@@ -15,6 +15,7 @@ try {
   await connection.query(await readFile(new URL("../migrations/20261116_storage_cleanup.sql", import.meta.url), "utf8"));
   await connection.query(await readFile(new URL("../migrations/20261117_storage_index.sql", import.meta.url), "utf8"));
   await connection.query(await readFile(new URL("../migrations/20261117_unified_posting.sql", import.meta.url), "utf8"));
+  await connection.query(await readFile(new URL("../migrations/20261117_youtube_feeds.sql", import.meta.url), "utf8"));
   await connection.query("COMMIT");
 } catch (error) {
   await connection.query("ROLLBACK");

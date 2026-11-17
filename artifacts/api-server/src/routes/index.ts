@@ -10,6 +10,7 @@ import autopilotRouter from "./autopilot";
 import publishingReviewRouter from "./publishing-review";
 import storageCleanupRouter from "./storage-cleanup";
 import unifiedPostingRouter from "./unified-posting";
+import youtubeFeedsRouter from "./youtube-feeds";
 
 const router: IRouter = Router();
 
@@ -20,6 +21,7 @@ router.use(storageCleanupRouter);
 router.use(socialRouter);
 router.use(autopilotRouter);
 router.use(unifiedPostingRouter);
+router.use(youtubeFeedsRouter);
 router.use(publishingReviewRouter);
 router.use(studioRouter);
 router.use(campaignsRouter);

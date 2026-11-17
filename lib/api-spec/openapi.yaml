@@ -6,6 +6,52 @@ info:
 servers:
   - url: /api
 paths:
+  /autopilot/feeds:
+    get:
+      operationId: listYoutubeFeeds
+      responses:
+        "200":
+          description: Owner subscriptions and durable pending uploads
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/YoutubeFeedReport" }
+    post:
+      operationId: addYoutubeFeed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/YoutubeFeedInput" }
+      responses:
+        "201":
+          description: Subscription created; first successful check baselines without rendering
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionReceipt" }
+        "400": { description: Unsupported input or resolution failed }
+        "409": { description: Already subscribed or subscription limit reached }
+  /autopilot/feeds/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    patch:
+      operationId: updateYoutubeFeed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/YoutubeFeedPreferences" }
+      responses:
+        "200":
+          description: Paused or resumed without deleting clips
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionReceipt" }
+        "404": { description: Not found }
+    delete:
+      operationId: removeYoutubeFeed
+      responses:
+        "204": { description: Future admissions stopped; existing jobs and clips preserved }
+        "404": { description: Not found }
   /autopilot/unified:
     get:
       operationId: getUnifiedPosting
@@ -644,6 +690,44 @@ paths:
               schema: { type: object, additionalProperties: true }
 components:
   schemas:
+    YoutubeFeedInput:
+      type: object
+      required: [source, authorizedUse]
+      properties:
+        source: { type: string, minLength: 1, maxLength: 512 }
+        authorizedUse: { type: boolean, enum: [true] }
+    YoutubeFeedPreferences:
+      type: object
+      required: [paused]
+      properties:
+        paused: { type: boolean }
+    YoutubeFeed:
+      type: object
+      required: [id, kind, providerId, feedUrl, title, paused, baselineAt, lastCheckedAt, lastSuccessAt, nextPollAt, error, pendingCount, budgetDeferredCount, deferredUntil]
+      properties:
+        id: { type: integer }
+        kind: { type: string, enum: [channel, playlist] }
+        providerId: { type: string }
+        feedUrl: { type: string }
+        title: { type: string }
+        paused: { type: boolean }
+        baselineAt: { type: [string, "null"], format: date-time }
+        lastCheckedAt: { type: [string, "null"], format: date-time }
+        lastSuccessAt: { type: [string, "null"], format: date-time }
+        nextPollAt: { type: string, format: date-time }
+        error: { type: [string, "null"] }
+        pendingCount: { type: integer }
+        budgetDeferredCount: { type: integer }
+        deferredUntil: { type: [string, "null"], format: date-time }
+    YoutubeFeedReport:
+      type: object
+      required: [feeds, serviceRunning, message]
+      properties:
+        feeds:
+          type: array
+          items: { $ref: "#/components/schemas/YoutubeFeed" }
+        serviceRunning: { type: boolean }
+        message: { type: string }
     UnifiedSelection:
       type: object
       required: [provider]

@@ -15,6 +15,7 @@ import { GetAutopilotUsageQueryParams, GetAutopilotUsageResponse, UpdateAIUsageL
 import { usageReport, setUsageLimit } from "../lib/ai-usage";
 import { isUnifiedProvider } from "../publishing/unifiedPublisher";
 import { unifiedAuthorized } from "../publishing/unified-settings";
+import { DuplicateYoutubeSource, recordYoutubeSubmission } from "../lib/youtube-source-identity";
 
 const router: IRouter = Router();
 router.use("/autopilot", (req, res, next) => {
@@ -75,6 +76,10 @@ router.post("/autopilot/launch", async (req, res): Promise<void> => {
         ownerId: req.workspaceId, sourceUrl, title: "Autopilot source", mode: "commentary", clipCount: 3, demo: false, campaignId: campaign?.id,
       }))).returning();
       const rows = await tx.insert(jobs).values(projects.map((p, index) => ({ ownerId: req.workspaceId, projectId: p.id, requestKey: `${input.data.idempotencyKey}:${index}`, inputHash: hash }))).returning();
+      for (const row of rows) {
+        const project = projects.find((p) => p.id === row.projectId)!;
+        await recordYoutubeSubmission(tx, req.workspaceId, project.sourceUrl, project.id, row.id);
+      }
       await tx.insert(admissions).values(rows.map((j) => ({ ownerId: j.ownerId, requestKey: j.requestKey, inputHash: j.inputHash, jobId: j.id, projectId: j.projectId })));
       return rows.map((r) => r.id);
     });
@@ -82,6 +87,7 @@ router.post("/autopilot/launch", async (req, res): Promise<void> => {
     res.set("Server-Timing", `accept;dur=${acceptedMs.toFixed(2)}`);
     res.status(202).json(LaunchAutopilotResponse.parse({ jobIds: ids, acceptedMs }));
   } catch (error) {
+    if (error instanceof DuplicateYoutubeSource) { res.status(409).json({ error: error.message }); return; }
     if (!(error instanceof InputError)) throw error;
     res.status(error.code).json({ error: error.message });
   }

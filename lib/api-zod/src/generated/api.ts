@@ -8,6 +8,68 @@
 import * as zod from 'zod';
 
 
+export const ListYoutubeFeedsResponse = zod.object({
+  "feeds": zod.array(zod.object({
+  "id": zod.number().int(),
+  "kind": zod.enum(['channel', 'playlist']),
+  "providerId": zod.string(),
+  "feedUrl": zod.string(),
+  "title": zod.string(),
+  "paused": zod.boolean(),
+  "baselineAt": zod.coerce.date().nullable(),
+  "lastCheckedAt": zod.coerce.date().nullable(),
+  "lastSuccessAt": zod.coerce.date().nullable(),
+  "nextPollAt": zod.coerce.date(),
+  "error": zod.string().nullable(),
+  "pendingCount": zod.number().int(),
+  "budgetDeferredCount": zod.number().int(),
+  "deferredUntil": zod.coerce.date().nullable()
+})),
+  "serviceRunning": zod.boolean(),
+  "message": zod.string()
+})
+
+
+export const addYoutubeFeedBodySourceMax = 512;
+
+
+
+export const AddYoutubeFeedBody = zod.object({
+  "source": zod.string().min(1).max(addYoutubeFeedBodySourceMax),
+  "authorizedUse": zod.literal(true)
+})
+
+export const AddYoutubeFeedResponse = zod.object({
+  "message": zod.string()
+})
+
+
+
+
+
+export const UpdateYoutubeFeedParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const UpdateYoutubeFeedBody = zod.object({
+  "paused": zod.boolean()
+})
+
+export const UpdateYoutubeFeedResponse = zod.object({
+  "message": zod.string()
+})
+
+
+
+
+
+export const RemoveYoutubeFeedParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const RemoveYoutubeFeedResponse = zod.void()
+
+
 export const GetUnifiedPostingResponse = zod.object({
   "provider": zod.enum(['none', 'ayrshare', 'late']),
   "keyConfigured": zod.boolean(),

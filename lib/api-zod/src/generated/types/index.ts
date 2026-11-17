@@ -80,3 +80,8 @@ export * from './unifiedSelectionProvider';
 export * from './uploadFinalizeInput';
 export * from './uploadInput';
 export * from './uploadResult';
+export * from './youtubeFeed';
+export * from './youtubeFeedInput';
+export * from './youtubeFeedKind';
+export * from './youtubeFeedPreferences';
+export * from './youtubeFeedReport';
