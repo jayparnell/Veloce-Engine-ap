@@ -61,6 +61,9 @@ import type {
   ScheduleInput,
   SocialIntegration,
   SocialIntegrationInput,
+  StorageConfirmation,
+  StorageReport,
+  StorageRetention,
   StudioSummary,
   SwarmJob,
   TrendingSource,
@@ -95,6 +98,360 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetStorageReportUrl = () => {
+
+
+
+
+  return `/api/storage/report`
+}
+
+export const getStorageReport = async ( options?: Parameters<typeof customFetch>[1]): Promise<StorageReport> => {
+
+  return customFetch<StorageReport>(getGetStorageReportUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStorageReportQueryKey = () => {
+    return [
+    `/api/storage/report`
+    ] as const;
+    }
+
+
+export const getGetStorageReportQueryOptions = <TData = Awaited<ReturnType<typeof getStorageReport>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStorageReport>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStorageReportQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStorageReport>>> = ({ signal }) => getStorageReport({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStorageReport>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetStorageReportQueryResult = NonNullable<Awaited<ReturnType<typeof getStorageReport>>>
+export type GetStorageReportQueryError = ErrorType<void>
+
+
+export function useGetStorageReport<TData = Awaited<ReturnType<typeof getStorageReport>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStorageReport>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getStorageReport>>,
+          TError,
+          Awaited<ReturnType<typeof getStorageReport>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetStorageReport<TData = Awaited<ReturnType<typeof getStorageReport>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStorageReport>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getStorageReport>>,
+          TError,
+          Awaited<ReturnType<typeof getStorageReport>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetStorageReport<TData = Awaited<ReturnType<typeof getStorageReport>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStorageReport>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetStorageReport<TData = Awaited<ReturnType<typeof getStorageReport>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStorageReport>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetStorageReportQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListStorageCleanupsUrl = () => {
+
+
+
+
+  return `/api/storage/cleanup/history`
+}
+
+export const listStorageCleanups = async ( options?: Parameters<typeof customFetch>[1]): Promise<StorageReport[]> => {
+
+  return customFetch<StorageReport[]>(getListStorageCleanupsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStorageCleanupsQueryKey = () => {
+    return [
+    `/api/storage/cleanup/history`
+    ] as const;
+    }
+
+
+export const getListStorageCleanupsQueryOptions = <TData = Awaited<ReturnType<typeof listStorageCleanups>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStorageCleanups>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStorageCleanupsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStorageCleanups>>> = ({ signal }) => listStorageCleanups({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStorageCleanups>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListStorageCleanupsQueryResult = NonNullable<Awaited<ReturnType<typeof listStorageCleanups>>>
+export type ListStorageCleanupsQueryError = ErrorType<unknown>
+
+
+export function useListStorageCleanups<TData = Awaited<ReturnType<typeof listStorageCleanups>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStorageCleanups>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listStorageCleanups>>,
+          TError,
+          Awaited<ReturnType<typeof listStorageCleanups>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListStorageCleanups<TData = Awaited<ReturnType<typeof listStorageCleanups>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStorageCleanups>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listStorageCleanups>>,
+          TError,
+          Awaited<ReturnType<typeof listStorageCleanups>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListStorageCleanups<TData = Awaited<ReturnType<typeof listStorageCleanups>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStorageCleanups>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useListStorageCleanups<TData = Awaited<ReturnType<typeof listStorageCleanups>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStorageCleanups>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListStorageCleanupsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPreviewStorageCleanupUrl = () => {
+
+
+
+
+  return `/api/storage/cleanup/preview`
+}
+
+export const previewStorageCleanup = async (storageRetention: StorageRetention, options?: Parameters<typeof customFetch>[1]): Promise<StorageReport> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<StorageReport>(getPreviewStorageCleanupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(storageRetention)
+  }
+);}
+
+
+
+
+
+export const getPreviewStorageCleanupMutationKey = () => ['previewStorageCleanup'] as const;
+
+export const getPreviewStorageCleanupMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewStorageCleanup>>, TError,PreviewStorageCleanupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewStorageCleanup>>, TError,PreviewStorageCleanupMutationVariables, TContext> => {
+
+const mutationKey = getPreviewStorageCleanupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewStorageCleanup>>, PreviewStorageCleanupMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  previewStorageCleanup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewStorageCleanupMutationResult = NonNullable<Awaited<ReturnType<typeof previewStorageCleanup>>>
+    export type PreviewStorageCleanupMutationBody = BodyType<StorageRetention>
+    export type PreviewStorageCleanupMutationError = ErrorType<unknown>
+    export type PreviewStorageCleanupMutationVariables = {data: BodyType<StorageRetention>}
+
+    export const usePreviewStorageCleanup = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewStorageCleanup>>, TError,PreviewStorageCleanupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof previewStorageCleanup>>,
+        TError,
+        PreviewStorageCleanupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPreviewStorageCleanupMutationOptions(options), queryClient);
+    }
+
+export const getConfirmStorageCleanupUrl = () => {
+
+
+
+
+  return `/api/storage/cleanup/confirm`
+}
+
+export const confirmStorageCleanup = async (storageConfirmation: StorageConfirmation, options?: Parameters<typeof customFetch>[1]): Promise<StorageReport> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<StorageReport>(getConfirmStorageCleanupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(storageConfirmation)
+  }
+);}
+
+
+
+
+
+export const getConfirmStorageCleanupMutationKey = () => ['confirmStorageCleanup'] as const;
+
+export const getConfirmStorageCleanupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmStorageCleanup>>, TError,ConfirmStorageCleanupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmStorageCleanup>>, TError,ConfirmStorageCleanupMutationVariables, TContext> => {
+
+const mutationKey = getConfirmStorageCleanupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmStorageCleanup>>, ConfirmStorageCleanupMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  confirmStorageCleanup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmStorageCleanupMutationResult = NonNullable<Awaited<ReturnType<typeof confirmStorageCleanup>>>
+    export type ConfirmStorageCleanupMutationBody = BodyType<StorageConfirmation>
+    export type ConfirmStorageCleanupMutationError = ErrorType<void>
+    export type ConfirmStorageCleanupMutationVariables = {data: BodyType<StorageConfirmation>}
+
+    export const useConfirmStorageCleanup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmStorageCleanup>>, TError,ConfirmStorageCleanupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof confirmStorageCleanup>>,
+        TError,
+        ConfirmStorageCleanupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getConfirmStorageCleanupMutationOptions(options), queryClient);
+    }
 
 export const getGetAutopilotUsageUrl = (params?: GetAutopilotUsageParams,) => {
   const normalizedParams = new URLSearchParams();

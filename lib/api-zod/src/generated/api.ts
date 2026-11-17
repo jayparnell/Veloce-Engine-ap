@@ -8,6 +8,174 @@
 import * as zod from 'zod';
 
 
+export const getStorageReportResponsePolicyExportDaysMin = 7;
+export const getStorageReportResponsePolicyExportDaysMax = 3650;
+
+export const getStorageReportResponsePolicyIntermediateDaysMin = 7;
+export const getStorageReportResponsePolicyIntermediateDaysMax = 3650;
+
+
+
+export const GetStorageReportResponse = zod.object({
+  "reportId": zod.string(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string(),
+  "status": zod.string(),
+  "policy": zod.object({
+  "exportDays": zod.number().int().min(getStorageReportResponsePolicyExportDaysMin).max(getStorageReportResponsePolicyExportDaysMax).nullable(),
+  "intermediateDays": zod.number().int().min(getStorageReportResponsePolicyIntermediateDaysMin).max(getStorageReportResponsePolicyIntermediateDaysMax).nullable()
+}),
+  "totals": zod.array(zod.object({
+  "category": zod.string(),
+  "bytes": zod.number(),
+  "count": zod.number().int()
+})),
+  "objects": zod.array(zod.object({
+  "objectPath": zod.string(),
+  "category": zod.string(),
+  "bytes": zod.number(),
+  "createdAt": zod.string(),
+  "generation": zod.string(),
+  "metageneration": zod.string(),
+  "eligible": zod.boolean(),
+  "reason": zod.string(),
+  "outcome": zod.string()
+})),
+  "notice": zod.string()
+})
+
+
+export const listStorageCleanupsResponsePolicyExportDaysMin = 7;
+export const listStorageCleanupsResponsePolicyExportDaysMax = 3650;
+
+export const listStorageCleanupsResponsePolicyIntermediateDaysMin = 7;
+export const listStorageCleanupsResponsePolicyIntermediateDaysMax = 3650;
+
+
+
+export const ListStorageCleanupsResponseItem = zod.object({
+  "reportId": zod.string(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string(),
+  "status": zod.string(),
+  "policy": zod.object({
+  "exportDays": zod.number().int().min(listStorageCleanupsResponsePolicyExportDaysMin).max(listStorageCleanupsResponsePolicyExportDaysMax).nullable(),
+  "intermediateDays": zod.number().int().min(listStorageCleanupsResponsePolicyIntermediateDaysMin).max(listStorageCleanupsResponsePolicyIntermediateDaysMax).nullable()
+}),
+  "totals": zod.array(zod.object({
+  "category": zod.string(),
+  "bytes": zod.number(),
+  "count": zod.number().int()
+})),
+  "objects": zod.array(zod.object({
+  "objectPath": zod.string(),
+  "category": zod.string(),
+  "bytes": zod.number(),
+  "createdAt": zod.string(),
+  "generation": zod.string(),
+  "metageneration": zod.string(),
+  "eligible": zod.boolean(),
+  "reason": zod.string(),
+  "outcome": zod.string()
+})),
+  "notice": zod.string()
+})
+export const ListStorageCleanupsResponse = zod.array(ListStorageCleanupsResponseItem)
+
+
+export const previewStorageCleanupBodyExportDaysMin = 7;
+export const previewStorageCleanupBodyExportDaysMax = 3650;
+
+export const previewStorageCleanupBodyIntermediateDaysMin = 7;
+export const previewStorageCleanupBodyIntermediateDaysMax = 3650;
+
+
+
+export const PreviewStorageCleanupBody = zod.object({
+  "exportDays": zod.number().int().min(previewStorageCleanupBodyExportDaysMin).max(previewStorageCleanupBodyExportDaysMax).nullable(),
+  "intermediateDays": zod.number().int().min(previewStorageCleanupBodyIntermediateDaysMin).max(previewStorageCleanupBodyIntermediateDaysMax).nullable()
+})
+
+export const previewStorageCleanupResponsePolicyExportDaysMin = 7;
+export const previewStorageCleanupResponsePolicyExportDaysMax = 3650;
+
+export const previewStorageCleanupResponsePolicyIntermediateDaysMin = 7;
+export const previewStorageCleanupResponsePolicyIntermediateDaysMax = 3650;
+
+
+
+export const PreviewStorageCleanupResponse = zod.object({
+  "reportId": zod.string(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string(),
+  "status": zod.string(),
+  "policy": zod.object({
+  "exportDays": zod.number().int().min(previewStorageCleanupResponsePolicyExportDaysMin).max(previewStorageCleanupResponsePolicyExportDaysMax).nullable(),
+  "intermediateDays": zod.number().int().min(previewStorageCleanupResponsePolicyIntermediateDaysMin).max(previewStorageCleanupResponsePolicyIntermediateDaysMax).nullable()
+}),
+  "totals": zod.array(zod.object({
+  "category": zod.string(),
+  "bytes": zod.number(),
+  "count": zod.number().int()
+})),
+  "objects": zod.array(zod.object({
+  "objectPath": zod.string(),
+  "category": zod.string(),
+  "bytes": zod.number(),
+  "createdAt": zod.string(),
+  "generation": zod.string(),
+  "metageneration": zod.string(),
+  "eligible": zod.boolean(),
+  "reason": zod.string(),
+  "outcome": zod.string()
+})),
+  "notice": zod.string()
+})
+
+
+export const ConfirmStorageCleanupBody = zod.object({
+  "reportId": zod.string(),
+  "objectPaths": zod.array(zod.string()),
+  "confirmation": zod.string()
+})
+
+export const confirmStorageCleanupResponsePolicyExportDaysMin = 7;
+export const confirmStorageCleanupResponsePolicyExportDaysMax = 3650;
+
+export const confirmStorageCleanupResponsePolicyIntermediateDaysMin = 7;
+export const confirmStorageCleanupResponsePolicyIntermediateDaysMax = 3650;
+
+
+
+export const ConfirmStorageCleanupResponse = zod.object({
+  "reportId": zod.string(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string(),
+  "status": zod.string(),
+  "policy": zod.object({
+  "exportDays": zod.number().int().min(confirmStorageCleanupResponsePolicyExportDaysMin).max(confirmStorageCleanupResponsePolicyExportDaysMax).nullable(),
+  "intermediateDays": zod.number().int().min(confirmStorageCleanupResponsePolicyIntermediateDaysMin).max(confirmStorageCleanupResponsePolicyIntermediateDaysMax).nullable()
+}),
+  "totals": zod.array(zod.object({
+  "category": zod.string(),
+  "bytes": zod.number(),
+  "count": zod.number().int()
+})),
+  "objects": zod.array(zod.object({
+  "objectPath": zod.string(),
+  "category": zod.string(),
+  "bytes": zod.number(),
+  "createdAt": zod.string(),
+  "generation": zod.string(),
+  "metageneration": zod.string(),
+  "eligible": zod.boolean(),
+  "reason": zod.string(),
+  "outcome": zod.string()
+})),
+  "notice": zod.string()
+})
+
+
 
 
 

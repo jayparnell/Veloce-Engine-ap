@@ -8,12 +8,14 @@ import storageRouter from "./storage";
 import socialRouter from "./social";
 import autopilotRouter from "./autopilot";
 import publishingReviewRouter from "./publishing-review";
+import storageCleanupRouter from "./storage-cleanup";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(storageRouter);
+router.use(storageCleanupRouter);
 router.use(socialRouter);
 router.use(autopilotRouter);
 router.use(publishingReviewRouter);

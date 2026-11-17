@@ -10,6 +10,7 @@ export async function storeBytes(bytes: Buffer, owner: string, contentType: stri
   const file = objectStorageClient.bucket(bucket!).file(parts.join("/"));
   await file.save(bytes, { resumable: false, contentType });
   await setObjectAclPolicy(file, { owner, visibility: "private" });
+  await file.setMetadata({ metadata: { "veloce:purpose": contentType === "application/zip" ? "export" : "intermediate" } });
   return objectPath;
 }
 /** Stream large remote sources from disk rather than allocating a multi-GB Buffer. */
@@ -21,6 +22,7 @@ export async function storeLocalFile(path: string, owner: string, contentType: s
     destination: parts.join("/"), resumable: true, metadata: { contentType },
   });
   await setObjectAclPolicy(file, { owner, visibility: "private" });
+  await file.setMetadata({ metadata: { "veloce:purpose": contentType === "application/zip" ? "export" : "intermediate" } });
   return objectPath;
 }
 export async function ownedFile(objectPath: string, owner: string) {

@@ -44,6 +44,10 @@ args = "render-guardrails"
 task = "workflow.run"
 args = "editor-regeneration"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "storage-retention"
+
 [[workflows.workflow]]
 name = "typecheck"
 author = "agent"
@@ -117,6 +121,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/scripts exec tsx --test --test-concurrency=1 ../artifacts/api-server/src/tests/regeneration.test.ts"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "storage-retention"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/tests/storage-cleanup.test.ts"
 
 [workflows.workflow.metadata]
 isValidation = true

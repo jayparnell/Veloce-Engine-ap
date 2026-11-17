@@ -12,6 +12,7 @@ try {
   await connection.query(await readFile(new URL("../migrations/20261116_render_guardrails.sql", import.meta.url), "utf8"));
   await connection.query(await readFile(new URL("../migrations/20261116_editor_regeneration.sql", import.meta.url), "utf8"));
   await connection.query(await readFile(new URL("../migrations/20261116_ai_usage.sql", import.meta.url), "utf8"));
+  await connection.query(await readFile(new URL("../migrations/20261116_storage_cleanup.sql", import.meta.url), "utf8"));
   await connection.query("COMMIT");
 } catch (error) {
   await connection.query("ROLLBACK");

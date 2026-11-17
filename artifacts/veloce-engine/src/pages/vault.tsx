@@ -9,6 +9,7 @@ import { Search, Film, Trash2, Save, Play, Pause, Captions, PictureInPicture2, T
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { StorageManager } from "@/components/storage-manager";
 import { usePack, useDub, PackButton, DubButton } from "@/components/autopilot";
 import { PageHeader, Pill, DemoTag, Sk, ErrorState, EmptyState, ScoreBar, statusTone, errMsg, fmtDur, btn, field } from "@/components/kit";
 
@@ -214,6 +215,8 @@ export default function Vault() {
           ) : <EmptyState icon={<Film className="w-4 h-4" />} title="Select a clip" desc="Choose a clip from the list to edit." />}
         </div>
       )}
+
+      <StorageManager />
 
       {pack.dialog}
 

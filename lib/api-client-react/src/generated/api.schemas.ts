@@ -5,6 +5,56 @@
  * Veloce Engine content production API
  * OpenAPI spec version: 1.0.0
  */
+export interface StorageRetention {
+  /**
+     * @minimum 7
+     * @maximum 3650
+     * @nullable
+     */
+  exportDays: number | null;
+  /**
+     * @minimum 7
+     * @maximum 3650
+     * @nullable
+     */
+  intermediateDays: number | null;
+}
+
+export interface StorageConfirmation {
+  reportId: string;
+  objectPaths: string[];
+  confirmation: string;
+}
+
+export interface StorageTotal {
+  category: string;
+  bytes: number;
+  count: number;
+}
+
+export interface StorageObject {
+  objectPath: string;
+  category: string;
+  bytes: number;
+  createdAt: string;
+  generation: string;
+  metageneration: string;
+  eligible: boolean;
+  reason: string;
+  outcome: string;
+}
+
+export interface StorageReport {
+  reportId: string;
+  createdAt: string;
+  expiresAt: string;
+  status: string;
+  policy: StorageRetention;
+  totals: StorageTotal[];
+  objects: StorageObject[];
+  notice: string;
+}
+
 export interface AIUsageLimitInput {
   /**
      * @minimum 0

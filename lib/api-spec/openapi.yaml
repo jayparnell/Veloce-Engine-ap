@@ -6,6 +6,56 @@ info:
 servers:
   - url: /api
 paths:
+  /storage/report:
+    get:
+      operationId: getStorageReport
+      responses:
+        "200":
+          description: Owner-only inventory; no deletion
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StorageReport" }
+        "401": { description: Sign in required }
+  /storage/cleanup/history:
+    get:
+      operationId: listStorageCleanups
+      responses:
+        "200":
+          description: Latest owner-only dry runs and outcomes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StorageReport" }
+  /storage/cleanup/preview:
+    post:
+      operationId: previewStorageCleanup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StorageRetention" }
+      responses:
+        "200":
+          description: Exact immutable removal manifest, valid for fifteen minutes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StorageReport" }
+  /storage/cleanup/confirm:
+    post:
+      operationId: confirmStorageCleanup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StorageConfirmation" }
+      responses:
+        "200":
+          description: Per-object cleanup outcomes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StorageReport" }
+        "409": { description: "Expired, changed, already used or invalid confirmation" }
   /autopilot/usage:
     get:
       operationId: getAutopilotUsage
@@ -531,6 +581,51 @@ paths:
               schema: { type: object, additionalProperties: true }
 components:
   schemas:
+    StorageRetention:
+      type: object
+      required: [exportDays, intermediateDays]
+      properties:
+        exportDays: { type: [integer, "null"], minimum: 7, maximum: 3650 }
+        intermediateDays: { type: [integer, "null"], minimum: 7, maximum: 3650 }
+    StorageConfirmation:
+      type: object
+      required: [reportId, objectPaths, confirmation]
+      properties:
+        reportId: { type: string }
+        objectPaths: { type: array, items: { type: string } }
+        confirmation: { type: string }
+    StorageTotal:
+      type: object
+      required: [category, bytes, count]
+      properties:
+        category: { type: string }
+        bytes: { type: number }
+        count: { type: integer }
+    StorageObject:
+      type: object
+      required: [objectPath, category, bytes, createdAt, generation, metageneration, eligible, reason, outcome]
+      properties:
+        objectPath: { type: string }
+        category: { type: string }
+        bytes: { type: number }
+        createdAt: { type: string }
+        generation: { type: string }
+        metageneration: { type: string }
+        eligible: { type: boolean }
+        reason: { type: string }
+        outcome: { type: string }
+    StorageReport:
+      type: object
+      required: [reportId, createdAt, expiresAt, status, policy, totals, objects, notice]
+      properties:
+        reportId: { type: string }
+        createdAt: { type: string }
+        expiresAt: { type: string }
+        status: { type: string }
+        policy: { $ref: "#/components/schemas/StorageRetention" }
+        totals: { type: array, items: { $ref: "#/components/schemas/StorageTotal" } }
+        objects: { type: array, items: { $ref: "#/components/schemas/StorageObject" } }
+        notice: { type: string }
     AIUsageLimitInput:
       type: object
       required: [dailyRequestUnitLimit]
