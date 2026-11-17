@@ -13,6 +13,7 @@ import { db, pool, projectsTable, generatedClipsTable, autopilotJobsTable,
 import { eq } from "drizzle-orm";
 import { storeBytes, ownedFile } from "../lib/mediaStorage";
 import { cleanupServices, storageReport, confirmCleanup } from "../lib/storage-cleanup";
+import { inventoryServices, reconcileInventory } from "../lib/storage-index";
 import { command } from "../pipeline/process";
 import { workspaceRoot } from "../pipeline/paths";
 import { createSession } from "../lib/auth";
@@ -28,6 +29,7 @@ const created = new Set<string>();
 const expiredFixtures = new Set<string>();
 const old = new Date(Date.now() - 40 * 86400000).toISOString();
 const services = { ...cleanupServices };
+const originalPage = inventoryServices.page;
 let projectId: number | undefined;
 let session: string | undefined;
 async function persist(buffer: Buffer, type: string, expired = false) {
@@ -37,6 +39,9 @@ async function persist(buffer: Buffer, type: string, expired = false) {
   return path;
 }
 async function approvedCleanup() {
+  await pool.query("UPDATE storage_inventory_state SET advanced_at=NULL");
+  do { await reconcileInventory(); }
+  while ((await pool.query("SELECT 1 FROM storage_inventory_state WHERE page_token IS NOT NULL")).rowCount);
   const report = await storageReport(owner, { exportDays: 7, intermediateDays: 7 }, true);
   const eligible = report.objects.filter((item) => item.eligible);
   assert.ok(eligible.length > 0);
@@ -79,8 +84,11 @@ try {
   const staleExport = await persist(Buffer.from("Synthetic expired export"), "application/zip", true);
   const orphanVoice = await persist(voiceBytes, "audio/mpeg", true);
   // Only fixture ages are replaced. All ACL, generation and deletion operations use the real provider.
-  cleanupServices.inventory = async () => (await services.inventory()).map((item) =>
-    item.owner === owner && expiredFixtures.has(item.objectPath) ? { ...item, createdAt: old } : item);
+  inventoryServices.page = async (token) => {
+    const page = await originalPage(token);
+    return { ...page, objects: page.objects.map((item) =>
+      item.owner === owner && expiredFixtures.has(item.objectPath) ? { ...item, createdAt: old } : item) };
+  };
   cleanupServices.current = async (path) => {
     const item = await services.current(path);
     return item.owner === owner && expiredFixtures.has(path) ? { ...item, createdAt: old } : item;
@@ -98,7 +106,7 @@ try {
     inputHash: "synthetic-paused", status: "uncertain", checkpoint: { narration: { objectPath: pausedSource } } }).returning();
   await persist(Buffer.from("Second synthetic expired export"), "application/zip", true);
   const second = await approvedCleanup();
-  assert.equal(second.objects.find((item) => item.objectPath === pausedSource)?.eligible, false);
+  assert.ok(!second.objects.some((item) => item.objectPath === pausedSource && item.eligible));
   const [processing] = await db.update(autopilotJobsTable).set({ status: "processing", leaseToken: "synthetic-storage-token",
     leaseUntil: new Date(Date.now() + 600000) }).where(eq(autopilotJobsTable.id, paused!.id)).returning();
   const ctx = new JobContext(processing!, "synthetic-storage-token");
@@ -127,6 +135,7 @@ try {
   process.stdout.write("PASS: real private storage write/list/read/conditional-delete; defaults keep all; completed EN/ES/PT fixture assets unchanged; 3-language ZIP valid; paused job resumed; owner range playback 206; anonymous and foreign-owner access denied.\nFixture ages simulated; narration is synthetic tone, not newly generated translated speech. No AI or publishing invoked.\n");
 } finally {
   Object.assign(cleanupServices, services);
+  inventoryServices.page = originalPage;
   // Only paths created by this invocation, and only if still owned by this synthetic owner.
   for (const path of created) {
     try { const file = await ownedFile(path, owner); await file.delete(); } catch (error) {

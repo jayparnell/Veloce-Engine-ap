@@ -1,7 +1,9 @@
 import { Router, type IRouter } from "express";
 import { PreviewStorageCleanupBody, ConfirmStorageCleanupBody, GetStorageReportResponse,
-  ListStorageCleanupsResponse, ConfirmStorageCleanupResponse, PreviewStorageCleanupResponse } from "@workspace/api-zod";
-import { storageReport, cleanupHistory, confirmCleanup, CleanupConflict } from "../lib/storage-cleanup";
+  ListStorageCleanupsResponse, ConfirmStorageCleanupResponse, PreviewStorageCleanupResponse,
+  GetStorageReportQueryParams, ListStorageCleanupsQueryParams, GetStorageCleanupQueryParams,
+  GetStorageCleanupParams, GetStorageCleanupResponse } from "@workspace/api-zod";
+import { storageReport, cleanupHistory, cleanupDetail, confirmCleanup, CleanupConflict } from "../lib/storage-cleanup";
 
 const router: IRouter = Router();
 router.use("/storage", (req, res, next) => {
@@ -10,10 +12,22 @@ router.use("/storage", (req, res, next) => {
   next();
 });
 router.get("/storage/report", async (req, res): Promise<void> => {
-  res.json(GetStorageReportResponse.parse(await storageReport(req.workspaceId)));
+  const parsed = GetStorageReportQueryParams.safeParse(req.query);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid inventory page." }); return; }
+  res.json(GetStorageReportResponse.parse(await storageReport(req.workspaceId, undefined, false, parsed.data.cursor, parsed.data.limit)));
 });
 router.get("/storage/cleanup/history", async (req, res): Promise<void> => {
-  res.json(ListStorageCleanupsResponse.parse(await cleanupHistory(req.workspaceId)));
+  const parsed = ListStorageCleanupsQueryParams.safeParse(req.query);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid history page." }); return; }
+  res.json(ListStorageCleanupsResponse.parse(await cleanupHistory(req.workspaceId, parsed.data.cursor, parsed.data.limit)));
+});
+router.get("/storage/cleanup/history/:id", async (req, res): Promise<void> => {
+  const params = GetStorageCleanupParams.safeParse(req.params);
+  const query = GetStorageCleanupQueryParams.safeParse(req.query);
+  if (!params.success || !query.success) { res.status(400).json({ error: "Invalid history page." }); return; }
+  const report = await cleanupDetail(req.workspaceId, params.data.id, query.data.cursor, query.data.limit);
+  if (!report) { res.status(404).json({ error: "Not found." }); return; }
+  res.json(GetStorageCleanupResponse.parse(report));
 });
 router.post("/storage/cleanup/preview", async (req, res): Promise<void> => {
   const parsed = PreviewStorageCleanupBody.safeParse(req.body);

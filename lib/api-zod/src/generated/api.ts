@@ -8,6 +8,18 @@
 import * as zod from 'zod';
 
 
+export const getStorageReportQueryCursorMax = 512;
+
+export const getStorageReportQueryLimitDefault = 50;
+export const getStorageReportQueryLimitMax = 100;
+
+
+
+export const GetStorageReportQueryParams = zod.object({
+  "cursor": zod.coerce.string().max(getStorageReportQueryCursorMax).optional(),
+  "limit": zod.coerce.number().int().min(1).max(getStorageReportQueryLimitMax).default(getStorageReportQueryLimitDefault)
+})
+
 export const getStorageReportResponsePolicyExportDaysMin = 7;
 export const getStorageReportResponsePolicyExportDaysMax = 3650;
 
@@ -41,26 +53,42 @@ export const GetStorageReportResponse = zod.object({
   "reason": zod.string(),
   "outcome": zod.string()
 })),
-  "notice": zod.string()
+  "notice": zod.string(),
+  "nextCursor": zod.string().nullish(),
+  "inventoryComplete": zod.boolean().optional(),
+  "lastReconciledAt": zod.string().nullish()
 })
 
 
-export const listStorageCleanupsResponsePolicyExportDaysMin = 7;
-export const listStorageCleanupsResponsePolicyExportDaysMax = 3650;
+export const listStorageCleanupsQueryCursorMax = 512;
 
-export const listStorageCleanupsResponsePolicyIntermediateDaysMin = 7;
-export const listStorageCleanupsResponsePolicyIntermediateDaysMax = 3650;
-
+export const listStorageCleanupsQueryLimitDefault = 10;
+export const listStorageCleanupsQueryLimitMax = 20;
 
 
-export const ListStorageCleanupsResponseItem = zod.object({
+
+export const ListStorageCleanupsQueryParams = zod.object({
+  "cursor": zod.coerce.string().max(listStorageCleanupsQueryCursorMax).optional(),
+  "limit": zod.coerce.number().int().min(1).max(listStorageCleanupsQueryLimitMax).default(listStorageCleanupsQueryLimitDefault)
+})
+
+export const listStorageCleanupsResponseItemsItemPolicyExportDaysMin = 7;
+export const listStorageCleanupsResponseItemsItemPolicyExportDaysMax = 3650;
+
+export const listStorageCleanupsResponseItemsItemPolicyIntermediateDaysMin = 7;
+export const listStorageCleanupsResponseItemsItemPolicyIntermediateDaysMax = 3650;
+
+
+
+export const ListStorageCleanupsResponse = zod.object({
+  "items": zod.array(zod.object({
   "reportId": zod.string(),
   "createdAt": zod.string(),
   "expiresAt": zod.string(),
   "status": zod.string(),
   "policy": zod.object({
-  "exportDays": zod.number().int().min(listStorageCleanupsResponsePolicyExportDaysMin).max(listStorageCleanupsResponsePolicyExportDaysMax).nullable(),
-  "intermediateDays": zod.number().int().min(listStorageCleanupsResponsePolicyIntermediateDaysMin).max(listStorageCleanupsResponsePolicyIntermediateDaysMax).nullable()
+  "exportDays": zod.number().int().min(listStorageCleanupsResponseItemsItemPolicyExportDaysMin).max(listStorageCleanupsResponseItemsItemPolicyExportDaysMax).nullable(),
+  "intermediateDays": zod.number().int().min(listStorageCleanupsResponseItemsItemPolicyIntermediateDaysMin).max(listStorageCleanupsResponseItemsItemPolicyIntermediateDaysMax).nullable()
 }),
   "totals": zod.array(zod.object({
   "category": zod.string(),
@@ -78,9 +106,69 @@ export const ListStorageCleanupsResponseItem = zod.object({
   "reason": zod.string(),
   "outcome": zod.string()
 })),
-  "notice": zod.string()
+  "notice": zod.string(),
+  "nextCursor": zod.string().nullish(),
+  "inventoryComplete": zod.boolean().optional(),
+  "lastReconciledAt": zod.string().nullish()
+})),
+  "nextCursor": zod.string().nullable()
 })
-export const ListStorageCleanupsResponse = zod.array(ListStorageCleanupsResponseItem)
+
+
+export const GetStorageCleanupParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const getStorageCleanupQueryCursorMax = 512;
+
+export const getStorageCleanupQueryLimitDefault = 50;
+export const getStorageCleanupQueryLimitMax = 100;
+
+
+
+export const GetStorageCleanupQueryParams = zod.object({
+  "cursor": zod.coerce.string().max(getStorageCleanupQueryCursorMax).optional(),
+  "limit": zod.coerce.number().int().min(1).max(getStorageCleanupQueryLimitMax).default(getStorageCleanupQueryLimitDefault)
+})
+
+export const getStorageCleanupResponsePolicyExportDaysMin = 7;
+export const getStorageCleanupResponsePolicyExportDaysMax = 3650;
+
+export const getStorageCleanupResponsePolicyIntermediateDaysMin = 7;
+export const getStorageCleanupResponsePolicyIntermediateDaysMax = 3650;
+
+
+
+export const GetStorageCleanupResponse = zod.object({
+  "reportId": zod.string(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string(),
+  "status": zod.string(),
+  "policy": zod.object({
+  "exportDays": zod.number().int().min(getStorageCleanupResponsePolicyExportDaysMin).max(getStorageCleanupResponsePolicyExportDaysMax).nullable(),
+  "intermediateDays": zod.number().int().min(getStorageCleanupResponsePolicyIntermediateDaysMin).max(getStorageCleanupResponsePolicyIntermediateDaysMax).nullable()
+}),
+  "totals": zod.array(zod.object({
+  "category": zod.string(),
+  "bytes": zod.number(),
+  "count": zod.number().int()
+})),
+  "objects": zod.array(zod.object({
+  "objectPath": zod.string(),
+  "category": zod.string(),
+  "bytes": zod.number(),
+  "createdAt": zod.string(),
+  "generation": zod.string(),
+  "metageneration": zod.string(),
+  "eligible": zod.boolean(),
+  "reason": zod.string(),
+  "outcome": zod.string()
+})),
+  "notice": zod.string(),
+  "nextCursor": zod.string().nullish(),
+  "inventoryComplete": zod.boolean().optional(),
+  "lastReconciledAt": zod.string().nullish()
+})
 
 
 export const previewStorageCleanupBodyExportDaysMin = 7;
@@ -129,13 +217,20 @@ export const PreviewStorageCleanupResponse = zod.object({
   "reason": zod.string(),
   "outcome": zod.string()
 })),
-  "notice": zod.string()
+  "notice": zod.string(),
+  "nextCursor": zod.string().nullish(),
+  "inventoryComplete": zod.boolean().optional(),
+  "lastReconciledAt": zod.string().nullish()
 })
+
+
+export const confirmStorageCleanupBodyObjectPathsMax = 25;
+
 
 
 export const ConfirmStorageCleanupBody = zod.object({
   "reportId": zod.string(),
-  "objectPaths": zod.array(zod.string()),
+  "objectPaths": zod.array(zod.string()).max(confirmStorageCleanupBodyObjectPathsMax),
   "confirmation": zod.string()
 })
 
@@ -172,7 +267,10 @@ export const ConfirmStorageCleanupResponse = zod.object({
   "reason": zod.string(),
   "outcome": zod.string()
 })),
-  "notice": zod.string()
+  "notice": zod.string(),
+  "nextCursor": zod.string().nullish(),
+  "inventoryComplete": zod.boolean().optional(),
+  "lastReconciledAt": zod.string().nullish()
 })
 
 

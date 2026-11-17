@@ -9,6 +9,9 @@ paths:
   /storage/report:
     get:
       operationId: getStorageReport
+      parameters:
+        - { name: cursor, in: query, schema: { type: string, maxLength: 512 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
       responses:
         "200":
           description: Owner-only inventory; no deletion
@@ -19,14 +22,29 @@ paths:
   /storage/cleanup/history:
     get:
       operationId: listStorageCleanups
+      parameters:
+        - { name: cursor, in: query, schema: { type: string, maxLength: 512 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 10 } }
       responses:
         "200":
           description: Latest owner-only dry runs and outcomes
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/StorageReport" }
+              schema: { $ref: "#/components/schemas/StorageHistoryPage" }
+  /storage/cleanup/history/{id}:
+    get:
+      operationId: getStorageCleanup
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 512 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        "200":
+          description: Owner-only paginated immutable manifest and current outcomes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StorageReport" }
+        "404": { description: Not found }
   /storage/cleanup/preview:
     post:
       operationId: previewStorageCleanup
@@ -592,7 +610,7 @@ components:
       required: [reportId, objectPaths, confirmation]
       properties:
         reportId: { type: string }
-        objectPaths: { type: array, items: { type: string } }
+        objectPaths: { type: array, maxItems: 25, items: { type: string } }
         confirmation: { type: string }
     StorageTotal:
       type: object
@@ -626,6 +644,15 @@ components:
         totals: { type: array, items: { $ref: "#/components/schemas/StorageTotal" } }
         objects: { type: array, items: { $ref: "#/components/schemas/StorageObject" } }
         notice: { type: string }
+        nextCursor: { type: [string, "null"] }
+        inventoryComplete: { type: boolean }
+        lastReconciledAt: { type: [string, "null"] }
+    StorageHistoryPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/StorageReport" } }
+        nextCursor: { type: [string, "null"] }
     AIUsageLimitInput:
       type: object
       required: [dailyRequestUnitLimit]

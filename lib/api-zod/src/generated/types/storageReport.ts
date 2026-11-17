@@ -18,4 +18,9 @@ export interface StorageReport {
   totals: StorageTotal[];
   objects: StorageObject[];
   notice: string;
+  /** @nullable */
+  nextCursor?: string | null;
+  inventoryComplete?: boolean;
+  /** @nullable */
+  lastReconciledAt?: string | null;
 }

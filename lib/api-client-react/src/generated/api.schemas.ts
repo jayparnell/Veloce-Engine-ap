@@ -22,6 +22,7 @@ export interface StorageRetention {
 
 export interface StorageConfirmation {
   reportId: string;
+  /** @maxItems 25 */
   objectPaths: string[];
   confirmation: string;
 }
@@ -53,6 +54,17 @@ export interface StorageReport {
   totals: StorageTotal[];
   objects: StorageObject[];
   notice: string;
+  /** @nullable */
+  nextCursor?: string | null;
+  inventoryComplete?: boolean;
+  /** @nullable */
+  lastReconciledAt?: string | null;
+}
+
+export interface StorageHistoryPage {
+  items: StorageReport[];
+  /** @nullable */
+  nextCursor: string | null;
 }
 
 export interface AIUsageLimitInput {
@@ -651,6 +663,42 @@ export type SocialIntegration = SocialIntegrationInput & {
   connected: boolean;
   canConnect: boolean;
   message: string;
+};
+
+export type GetStorageReportParams = {
+/**
+ * @maxLength 512
+ */
+cursor?: string;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+};
+
+export type ListStorageCleanupsParams = {
+/**
+ * @maxLength 512
+ */
+cursor?: string;
+/**
+ * @minimum 1
+ * @maximum 20
+ */
+limit?: number;
+};
+
+export type GetStorageCleanupParams = {
+/**
+ * @maxLength 512
+ */
+cursor?: string;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
 };
 
 export type GetAutopilotUsageParams = {

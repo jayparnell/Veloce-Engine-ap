@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetStorageReport, getGetStorageReportQueryKey, useListStorageCleanups, getListStorageCleanupsQueryKey,
   usePreviewStorageCleanup, useConfirmStorageCleanup, type StorageReport, type StorageObject,
+  useGetStorageCleanup,
 } from "@workspace/api-client-react";
 import { HardDrive, RefreshCw, ShieldCheck, AlertTriangle, ScanSearch, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -47,11 +48,38 @@ function ObjectRows({ objects, showOutcome }: { objects: StorageObject[]; showOu
   );
 }
 
+function AuditEntry({ summary }: { summary: StorageReport }) {
+  const [open, setOpen] = useState(false);
+  const [pages, setPages] = useState<string[]>([""]);
+  const detail = useGetStorageCleanup(summary.reportId, { cursor: pages.at(-1), limit: 50 },
+    { query: { enabled: open, staleTime: 0 } });
+  return <details className="rounded-md border border-white/[0.06] px-3 py-2"
+    data-testid={`row-cleanup-${summary.reportId}`} onToggle={(e) => setOpen(e.currentTarget.open)}>
+    <summary className="cursor-pointer flex flex-wrap items-center gap-2 text-[11.5px]">
+      <Pill tone={statusTone(summary.status)}>{summary.status}</Pill>
+      <span className="mono text-zinc-400">{fmtTime(summary.createdAt)}</span>
+      <span className="text-zinc-500">Review manifest and outcomes</span>
+    </summary>
+    {open && <div className="mt-2 space-y-2">
+      {detail.isLoading ? <Sk className="h-16" /> : detail.isError
+        ? <ErrorState title="Could not load audit objects" error={detail.error} onRetry={() => detail.refetch()} />
+        : detail.data && <><ObjectRows objects={detail.data.objects} showOutcome />
+          <div className="flex gap-2">
+            <button className={btn.ghost} disabled={pages.length === 1 || detail.isFetching} onClick={() => setPages(pages.slice(0, -1))}>Previous objects</button>
+            <button className={btn.ghost} disabled={!detail.data.nextCursor || detail.isFetching}
+              onClick={() => setPages([...pages, detail.data!.nextCursor!])}>Next objects</button>
+          </div></>}
+    </div>}
+  </details>;
+}
+
 export function StorageManager() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const report = useGetStorageReport({ query: { queryKey: getGetStorageReportQueryKey() } });
-  const history = useListStorageCleanups({ query: { queryKey: getListStorageCleanupsQueryKey() } });
+  const [inventoryPages, setInventoryPages] = useState<string[]>([""]);
+  const [historyPages, setHistoryPages] = useState<string[]>([""]);
+  const report = useGetStorageReport({ cursor: inventoryPages.at(-1), limit: 50 });
+  const history = useListStorageCleanups({ cursor: historyPages.at(-1), limit: 10 });
   const [exp, setExp] = useState("");
   const [inter, setInter] = useState("");
   const [preview, setPreview] = useState<StorageReport | null>(null);
@@ -67,7 +95,7 @@ export function StorageManager() {
 
   const e = parseDays(exp), it = parseDays(inter);
   const discard = () => { setPreview(null); setPhrase(""); };
-  const refresh = () => { qc.invalidateQueries({ queryKey: getGetStorageReportQueryKey() }); qc.invalidateQueries({ queryKey: getListStorageCleanupsQueryKey() }); };
+  const refresh = () => { setInventoryPages([""]); setHistoryPages([""]); qc.invalidateQueries({ queryKey: getGetStorageReportQueryKey() }); qc.invalidateQueries({ queryKey: getListStorageCleanupsQueryKey() }); };
 
   const prev = usePreviewStorageCleanup({ mutation: {
     onSuccess: (r) => { setPreview(r); setPhrase(""); setResult(null); },
@@ -93,7 +121,7 @@ export function StorageManager() {
           <div className="text-[13.5px] font-medium">Storage</div>
           <div className="text-[11px] text-zinc-500">Nothing is deleted automatically. Cleanup only runs when you confirm a reviewed dry run.</div>
         </div>
-        <button className={btn.ghost} onClick={() => { report.refetch(); history.refetch(); }} disabled={report.isFetching} data-testid="button-refresh-storage">
+        <button className={btn.ghost} onClick={refresh} disabled={report.isFetching} data-testid="button-refresh-storage">
           <RefreshCw className={cn("w-3.5 h-3.5", report.isFetching && "animate-spin")} /> Refresh
         </button>
       </div>
@@ -107,6 +135,10 @@ export function StorageManager() {
         {report.isLoading ? <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[0, 1, 2, 3].map((i) => <Sk key={i} className="h-20" />)}</div>
           : report.isError ? <ErrorState title="Could not load storage report" error={report.error} onRetry={() => report.refetch()} />
           : r && (<>
+            <div className="text-[11.5px] text-zinc-400" data-testid="text-inventory-freshness">
+              {r.inventoryComplete ? `Inventory reconciled ${r.lastReconciledAt ? fmtTime(r.lastReconciledAt) : ""}.`
+                : "Inventory reconciliation is incomplete. Totals may be partial; refresh to scan the next batch."}
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {CATS.map((c) => {
                 const t = r.totals.filter((x) => matchCat(x.category, c.key));
@@ -125,9 +157,16 @@ export function StorageManager() {
             )}
             <div>
               <button className="text-[11.5px] text-zinc-400 hover:text-zinc-200 underline" onClick={() => setShowInv(!showInv)} data-testid="button-toggle-inventory">
-                {showInv ? "Hide" : "Show"} inventory protection reasons ({protectedObjs.length} protected)
+                {showInv ? "Hide" : "Show"} inventory protection reasons ({protectedObjs.length} protected on this page)
               </button>
-              {showInv && <div className="mt-2">{r.objects.length ? <ObjectRows objects={r.objects} /> : <div className="text-[12px] text-zinc-500">No verified objects in inventory.</div>}</div>}
+              {showInv && <div className="mt-2 space-y-2">{r.objects.length ? <ObjectRows objects={r.objects} /> : <div className="text-[12px] text-zinc-500">No verified objects on this page.</div>}
+                <div className="flex gap-2">
+                  <button className={btn.ghost} disabled={inventoryPages.length === 1 || report.isFetching}
+                    onClick={() => setInventoryPages(inventoryPages.slice(0, -1))} data-testid="button-inventory-previous">Previous objects</button>
+                  <button className={btn.ghost} disabled={!r.nextCursor || report.isFetching}
+                    onClick={() => setInventoryPages([...inventoryPages, r.nextCursor!])} data-testid="button-inventory-next">Next objects</button>
+                </div>
+              </div>}
             </div>
           </>)}
 
@@ -146,7 +185,7 @@ export function StorageManager() {
             <button className={btn.primary} disabled={!e.ok || !it.ok || prev.isPending || conf.isPending} onClick={() => { discard(); prev.mutate({ data: { exportDays: e.val, intermediateDays: it.val } }); }} data-testid="button-preview-cleanup">
               <ScanSearch className="w-3.5 h-3.5" /> {prev.isPending ? "Scanning..." : "Run dry run"}
             </button>
-            <span className="text-[11px] text-zinc-500">Final clips and uploads are never candidates. Blank keeps everything.</span>
+            <span className="text-[11px] text-zinc-500">At most 25 deletions per dry run. Final clips and uploads are never candidates. Blank keeps everything.</span>
           </div>
 
           {preview && (
@@ -154,7 +193,7 @@ export function StorageManager() {
               <div className="flex flex-wrap items-center gap-2 text-[11.5px]">
                 <Pill tone={eligible.length ? "amber" : "emerald"}>{eligible.length} eligible</Pill>
                 <span className="mono text-zinc-300">{fmtBytes(eligibleBytes)}</span>
-                <span className="text-zinc-500">· {preview.objects.length - eligible.length} protected · report {preview.reportId.slice(0, 8)} · expires {fmtTime(preview.expiresAt)}</span>
+                <span className="text-zinc-500">· batch report {preview.reportId.slice(0, 8)} · expires {fmtTime(preview.expiresAt)}</span>
                 {expired && <Pill tone="red">expired, run again</Pill>}
               </div>
               {eligible.length === 0 ? <div className="text-[12px] text-zinc-400">Nothing qualifies under these cutoffs. No confirmation needed.</div> : (<>
@@ -186,20 +225,14 @@ export function StorageManager() {
         <div>
           <div className="flex items-center gap-1.5 label-xs mb-2"><History className="w-3 h-3" /> Cleanup audit history</div>
           {history.isLoading ? <Sk className="h-16" /> : history.isError ? <ErrorState title="Could not load history" error={history.error} onRetry={() => history.refetch()} />
-            : !history.data?.length ? <div className="text-[12px] text-zinc-500">No cleanups have been confirmed yet.</div>
-            : <div className="space-y-2">{history.data.map((h) => {
-                const counts = h.objects.reduce<Record<string, number>>((m, o) => { const k = o.outcome || "pending"; m[k] = (m[k] ?? 0) + 1; return m; }, {});
-                return (
-                  <details key={h.reportId} className="rounded-md border border-white/[0.06] px-3 py-2" data-testid={`row-cleanup-${h.reportId}`}>
-                    <summary className="cursor-pointer flex flex-wrap items-center gap-2 text-[11.5px]">
-                      <Pill tone={statusTone(h.status)}>{h.status}</Pill>
-                      <span className="mono text-zinc-400">{fmtTime(h.createdAt)}</span>
-                      <span className="text-zinc-500">{Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(" · ") || "no objects"}</span>
-                    </summary>
-                    <div className="mt-2">{h.objects.length ? <ObjectRows objects={h.objects} showOutcome /> : null}</div>
-                  </details>
-                );
-              })}</div>}
+            : !history.data?.items.length ? <div className="text-[12px] text-zinc-500">No cleanup reports on this page.</div>
+            : <div className="space-y-2">{history.data.items.map((h) => <AuditEntry key={h.reportId} summary={h} />)}</div>}
+          <div className="flex gap-2 mt-2">
+            <button className={btn.ghost} disabled={historyPages.length === 1 || history.isFetching}
+              onClick={() => setHistoryPages(historyPages.slice(0, -1))} data-testid="button-history-previous">Newer reports</button>
+            <button className={btn.ghost} disabled={!history.data?.nextCursor || history.isFetching}
+              onClick={() => setHistoryPages([...historyPages, history.data!.nextCursor!])} data-testid="button-history-next">Older reports</button>
+          </div>
         </div>
       </div>
     </section>

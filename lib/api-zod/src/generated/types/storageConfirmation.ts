@@ -8,6 +8,7 @@
 
 export interface StorageConfirmation {
   reportId: string;
+  /** @maxItems 25 */
   objectPaths: string[];
   confirmation: string;
 }
