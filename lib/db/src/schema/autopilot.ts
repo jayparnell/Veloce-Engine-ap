@@ -82,6 +82,9 @@ export const socialAccountsTable = pgTable("social_accounts", {
   remoteAccountId: text("remote_account_id").notNull(),
   handle: text("handle").notNull(),
   encryptedTokens: text("encrypted_tokens"),
+  postingRoute: text("posting_route").notNull().default("direct"),
+  unifiedAccountId: text("unified_account_id"),
+  unifiedProfileId: text("unified_profile_id"),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   scopes: text("scopes").notNull(),
   approved: boolean("approved").notNull().default(false),
@@ -103,6 +106,7 @@ export const publishQueueTable = pgTable("autopilot_publish_queue", {
   timezone: text("timezone").notNull(),
   status: text("status").notNull().default("scheduled"),
   remoteId: text("remote_id"),
+  remoteUrl: text("remote_url"),
   checkpoint: jsonb("checkpoint").$type<Checkpoint>().notNull().default({}),
   attempts: integer("attempts").notNull().default(0),
   failureCountVersion: integer("failure_count_version").notNull().default(1),
@@ -118,6 +122,13 @@ export const publishQueueTable = pgTable("autopilot_publish_queue", {
 export const workerServicesTable = pgTable("autopilot_services", {
   name: text("name").primaryKey(),
   heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const unifiedPostingSettingsTable = pgTable("unified_posting_settings", {
+  ownerId: text("owner_id").primaryKey(),
+  provider: text("provider").notNull(),
+  credentialHash: text("credential_hash").notNull(),
+  discovery: jsonb("discovery").$type<Array<{ id: string; nativeId: string; profileId: string; provider: string; handle: string }>>().notNull().default([]),
+  discoveredAt: timestamp("discovered_at", { withTimezone: true }),
 });
 export const automationSettingsTable = pgTable("automation_settings", {
   ownerId: text("owner_id").primaryKey(),

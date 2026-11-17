@@ -15,7 +15,7 @@ function redirectUri(req: Request, provider: Provider) {
 async function publicConfig(req: Request, provider: Provider) {
   const meta = providers[provider];
   const [saved] = await db.select().from(socialConfigsTable).where(and(eq(socialConfigsTable.ownerId, req.workspaceId), eq(socialConfigsTable.provider, provider)));
-  const connectedAccounts = await db.select({ id: socialAccountsTable.id }).from(socialAccountsTable).where(and(eq(socialAccountsTable.ownerId, req.workspaceId), eq(socialAccountsTable.provider, provider), eq(socialAccountsTable.connected, true)));
+  const connectedAccounts = await db.select({ id: socialAccountsTable.id }).from(socialAccountsTable).where(and(eq(socialAccountsTable.ownerId, req.workspaceId), eq(socialAccountsTable.provider, provider), eq(socialAccountsTable.postingRoute, "direct"), eq(socialAccountsTable.connected, true)));
   const secretConfigured = Boolean(process.env[meta.secretName]);
   const connected = connectedAccounts.length > 0;
   const canConnect = Boolean(req.isAuthenticated() && saved?.clientId && saved.appApproved && secretConfigured && process.env.SESSION_SECRET);
@@ -49,7 +49,7 @@ router.put("/settings/integrations/:provider", async (req, res): Promise<void> =
     });
     if (changed || !values.appApproved) await tx.update(socialAccountsTable).set({
       approved: values.appApproved, autoEnabled: false, ...(changed ? { connected: false, encryptedTokens: null, error: "Application identifier changed. Reauthorize this account." } : {}),
-    }).where(and(eq(socialAccountsTable.ownerId, req.workspaceId), eq(socialAccountsTable.provider, provider)));
+    }).where(and(eq(socialAccountsTable.ownerId, req.workspaceId), eq(socialAccountsTable.provider, provider), eq(socialAccountsTable.postingRoute, "direct")));
   });
   res.json(SaveSocialIntegrationResponse.parse(await publicConfig(req, provider)));
 });
@@ -61,7 +61,7 @@ router.delete("/settings/integrations/:provider", async (req, res): Promise<void
   await db.transaction(async (tx) => {
     await tx.update(socialConfigsTable).set({ encryptedTokens: null, expiresAt: null }).where(and(eq(socialConfigsTable.ownerId, req.workspaceId), eq(socialConfigsTable.provider, provider)));
     await tx.delete(oauthStatesTable).where(and(eq(oauthStatesTable.ownerId, req.workspaceId), eq(oauthStatesTable.provider, provider)));
-    await tx.update(socialAccountsTable).set({ connected: false, autoEnabled: false, encryptedTokens: null }).where(and(eq(socialAccountsTable.ownerId, req.workspaceId), eq(socialAccountsTable.provider, provider)));
+    await tx.update(socialAccountsTable).set({ connected: false, autoEnabled: false, encryptedTokens: null }).where(and(eq(socialAccountsTable.ownerId, req.workspaceId), eq(socialAccountsTable.provider, provider), eq(socialAccountsTable.postingRoute, "direct")));
     await tx.update(platformAccountsTable).set({ connected: false, handle: "" }).where(and(eq(platformAccountsTable.ownerId, req.workspaceId), eq(platformAccountsTable.platform, providers[provider].platform)));
   });
   res.sendStatus(204);
@@ -113,12 +113,22 @@ router.get("/social/oauth/:provider/callback", async (req, res): Promise<void> =
     const granted = (token.scope ?? "").split(/[,\s]+/);
     if (!config.scopes.split(/[,\s]+/).every((s) => granted.includes(s))) throw new Error("Required scopes not granted");
     const account = await identifyAccount(provider, token);
-    await db.insert(socialAccountsTable).values({
+    const mapped = await db.insert(socialAccountsTable).values({
       ownerId: req.workspaceId, provider, platform: meta.platform, remoteAccountId: account.id, handle: account.handle,
       encryptedTokens: encryptTokens(token), expiresAt: new Date(Date.now() + Math.max(0, Number(token.expires_in ?? 3600)) * 1000),
       scopes: token.scope!, approved: config.appApproved, slots: PRESETS.find((p) => p.provider === provider)!.slots,
     }).onConflictDoUpdate({ target: [socialAccountsTable.ownerId, socialAccountsTable.provider, socialAccountsTable.remoteAccountId],
-      set: { encryptedTokens: encryptTokens(token), expiresAt: new Date(Date.now() + Math.max(0, Number(token.expires_in ?? 3600)) * 1000), connected: true, approved: config.appApproved, scopes: token.scope!, handle: account.handle, autoEnabled: false, error: null } });
+      set: { encryptedTokens: encryptTokens(token), expiresAt: new Date(Date.now() + Math.max(0, Number(token.expires_in ?? 3600)) * 1000), connected: true, approved: config.appApproved, scopes: token.scope!, handle: account.handle, autoEnabled: false, error: null },
+      setWhere: eq(socialAccountsTable.postingRoute, "direct"),
+    }).returning();
+    // A destination has one route. Updating its creator-check token is safe only while
+    // the unified destination is stopped; this never creates a second posting account.
+    if (!mapped.length) {
+      const [existing] = await db.select().from(socialAccountsTable).where(and(eq(socialAccountsTable.ownerId, req.workspaceId), eq(socialAccountsTable.provider, provider), eq(socialAccountsTable.remoteAccountId, account.id)));
+      if (provider !== "tiktok" || !existing || existing.autoEnabled) throw new Error("Destination already uses unified posting");
+      await db.update(socialAccountsTable).set({ encryptedTokens: encryptTokens(token), expiresAt: new Date(Date.now() + Math.max(0, Number(token.expires_in ?? 3600)) * 1000), scopes: token.scope! })
+        .where(and(eq(socialAccountsTable.id, existing.id), eq(socialAccountsTable.autoEnabled, false)));
+    }
     res.redirect("/settings?oauth=connected");
   } catch {
     req.log.warn({ provider }, "Social authorization could not be completed");

@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { TikTokReviewDialog } from "@/components/tiktok-review";
 import { RenderBudgetSettings, FailureDetails } from "@/components/autopilot";
+import { UnifiedPostingSettings } from "@/components/unified-posting";
 import { PageHeader, Pill, DemoTag, Sk, ErrorState, EmptyState, statusTone, errMsg, btn, field } from "@/components/kit";
 
 const PLATFORMS: ScheduleInputPlatform[] = ["YouTube Shorts", "TikTok", "Instagram Reels", "X"];
@@ -54,6 +55,7 @@ function AccountEditor({ a, presets }: { a: AutopilotAccount; presets: SlotPrese
         <span className="text-[13px] font-medium mono" data-testid={`text-handle-${a.id}`}>{a.handle || "(no handle reported)"}</span>
         <Pill tone={a.connected ? "emerald" : "neutral"}>{a.connected ? "Connected" : "Not connected"}</Pill>
         <Pill tone={a.approved ? "emerald" : "amber"}>{a.approved ? "Provider approved" : "Approval pending"}</Pill>
+        <Pill tone="neutral">{a.postingRoute && a.postingRoute !== "direct" ? a.postingRoute === "late" ? "Late / Zernio" : "Ayrshare" : "Direct OAuth"}</Pill>
         {a.autoEnabled && a.connected && a.approved && <Pill tone="sky" dot>Auto on</Pill>}
         <button className={cn(btn.icon, "ml-auto")} onClick={() => setConfirmOff(true)} aria-label="Disconnect account" data-testid={`button-disconnect-account-${a.id}`}><Unplug className="w-3.5 h-3.5" /></button>
       </div>
@@ -202,6 +204,7 @@ export default function Distribution() {
       )}
 
       <RenderBudgetSettings />
+      <UnifiedPostingSettings />
       <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-5">
         <section className="space-y-3 min-w-0">
           <h2 className="text-[13px] font-semibold">Accounts</h2>
@@ -227,6 +230,7 @@ export default function Distribution() {
                 </div>
                 {e.status === "needs_review" && /tiktok/i.test(e.platform) && <div className="mt-2 flex justify-end"><button className={btn.primary} onClick={() => setReviewId(e.id)} data-testid={`button-review-${e.id}`}>Review & approve</button></div>}
                 {e.remoteId && <div className="mono text-[10.5px] text-emerald-400/80 mt-1 ml-[100px] truncate" data-testid={`text-remote-${e.id}`}>remote id {e.remoteId}</div>}
+                {e.remoteUrl && <a href={e.remoteUrl} target="_blank" rel="noopener noreferrer" className="text-[11.5px] text-emerald-400 underline sm:ml-[100px]" data-testid={`link-published-${e.id}`}>View published post</a>}
                 {e.error && <div className="text-[11.5px] text-red-300 mt-1.5 ml-0 sm:ml-[100px] bg-red-500/5 border border-red-500/15 rounded px-2 py-1 break-words" data-testid={`text-publish-error-${e.id}`}>{e.error}</div>}
                 <FailureDetails status={e.status} kind={e.failureKind} count={e.attempts} retryAt={e.retryAt} />
               </div>))}</div>}

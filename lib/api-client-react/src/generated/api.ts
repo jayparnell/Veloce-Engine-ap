@@ -71,6 +71,9 @@ import type {
   StudioSummary,
   SwarmJob,
   TrendingSource,
+  UnifiedAccountSelection,
+  UnifiedPosting,
+  UnifiedSelection,
   UploadFinalizeInput,
   UploadInput,
   UploadResult
@@ -102,6 +105,333 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetUnifiedPostingUrl = () => {
+
+
+
+
+  return `/api/autopilot/unified`
+}
+
+export const getUnifiedPosting = async ( options?: Parameters<typeof customFetch>[1]): Promise<UnifiedPosting> => {
+
+  return customFetch<UnifiedPosting>(getGetUnifiedPostingUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUnifiedPostingQueryKey = () => {
+    return [
+    `/api/autopilot/unified`
+    ] as const;
+    }
+
+
+export const getGetUnifiedPostingQueryOptions = <TData = Awaited<ReturnType<typeof getUnifiedPosting>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnifiedPosting>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUnifiedPostingQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUnifiedPosting>>> = ({ signal }) => getUnifiedPosting({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUnifiedPosting>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUnifiedPostingQueryResult = NonNullable<Awaited<ReturnType<typeof getUnifiedPosting>>>
+export type GetUnifiedPostingQueryError = ErrorType<unknown>
+
+
+export function useGetUnifiedPosting<TData = Awaited<ReturnType<typeof getUnifiedPosting>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnifiedPosting>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUnifiedPosting>>,
+          TError,
+          Awaited<ReturnType<typeof getUnifiedPosting>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUnifiedPosting<TData = Awaited<ReturnType<typeof getUnifiedPosting>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnifiedPosting>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUnifiedPosting>>,
+          TError,
+          Awaited<ReturnType<typeof getUnifiedPosting>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUnifiedPosting<TData = Awaited<ReturnType<typeof getUnifiedPosting>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnifiedPosting>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetUnifiedPosting<TData = Awaited<ReturnType<typeof getUnifiedPosting>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnifiedPosting>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetUnifiedPostingQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveUnifiedPostingUrl = () => {
+
+
+
+
+  return `/api/autopilot/unified`
+}
+
+export const saveUnifiedPosting = async (unifiedSelection: UnifiedSelection, options?: Parameters<typeof customFetch>[1]): Promise<UnifiedPosting> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<UnifiedPosting>(getSaveUnifiedPostingUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(unifiedSelection)
+  }
+);}
+
+
+
+
+
+export const getSaveUnifiedPostingMutationKey = () => ['saveUnifiedPosting'] as const;
+
+export const getSaveUnifiedPostingMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveUnifiedPosting>>, TError,SaveUnifiedPostingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveUnifiedPosting>>, TError,SaveUnifiedPostingMutationVariables, TContext> => {
+
+const mutationKey = getSaveUnifiedPostingMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveUnifiedPosting>>, SaveUnifiedPostingMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveUnifiedPosting(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveUnifiedPostingMutationResult = NonNullable<Awaited<ReturnType<typeof saveUnifiedPosting>>>
+    export type SaveUnifiedPostingMutationBody = BodyType<UnifiedSelection>
+    export type SaveUnifiedPostingMutationError = ErrorType<unknown>
+    export type SaveUnifiedPostingMutationVariables = {data: BodyType<UnifiedSelection>}
+
+    export const useSaveUnifiedPosting = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveUnifiedPosting>>, TError,SaveUnifiedPostingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveUnifiedPosting>>,
+        TError,
+        SaveUnifiedPostingMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveUnifiedPostingMutationOptions(options), queryClient);
+    }
+
+export const getDiscoverUnifiedAccountsUrl = () => {
+
+
+
+
+  return `/api/autopilot/unified/discover`
+}
+
+export const discoverUnifiedAccounts = async ( options?: Parameters<typeof customFetch>[1]): Promise<UnifiedPosting> => {
+
+  return customFetch<UnifiedPosting>(getDiscoverUnifiedAccountsUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDiscoverUnifiedAccountsMutationKey = () => ['discoverUnifiedAccounts'] as const;
+
+export const getDiscoverUnifiedAccountsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof discoverUnifiedAccounts>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof discoverUnifiedAccounts>>, TError,void, TContext> => {
+
+const mutationKey = getDiscoverUnifiedAccountsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof discoverUnifiedAccounts>>, void> = () => {
+
+
+          return  discoverUnifiedAccounts(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DiscoverUnifiedAccountsMutationResult = NonNullable<Awaited<ReturnType<typeof discoverUnifiedAccounts>>>
+
+    export type DiscoverUnifiedAccountsMutationError = ErrorType<unknown>
+
+
+    export const useDiscoverUnifiedAccounts = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof discoverUnifiedAccounts>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof discoverUnifiedAccounts>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDiscoverUnifiedAccountsMutationOptions(options), queryClient);
+    }
+
+export const getConnectUnifiedAccountUrl = () => {
+
+
+
+
+  return `/api/autopilot/unified/accounts`
+}
+
+export const connectUnifiedAccount = async (unifiedAccountSelection: UnifiedAccountSelection, options?: Parameters<typeof customFetch>[1]): Promise<ActionReceipt> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ActionReceipt>(getConnectUnifiedAccountUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(unifiedAccountSelection)
+  }
+);}
+
+
+
+
+
+export const getConnectUnifiedAccountMutationKey = () => ['connectUnifiedAccount'] as const;
+
+export const getConnectUnifiedAccountMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof connectUnifiedAccount>>, TError,ConnectUnifiedAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof connectUnifiedAccount>>, TError,ConnectUnifiedAccountMutationVariables, TContext> => {
+
+const mutationKey = getConnectUnifiedAccountMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof connectUnifiedAccount>>, ConnectUnifiedAccountMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  connectUnifiedAccount(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConnectUnifiedAccountMutationResult = NonNullable<Awaited<ReturnType<typeof connectUnifiedAccount>>>
+    export type ConnectUnifiedAccountMutationBody = BodyType<UnifiedAccountSelection>
+    export type ConnectUnifiedAccountMutationError = ErrorType<unknown>
+    export type ConnectUnifiedAccountMutationVariables = {data: BodyType<UnifiedAccountSelection>}
+
+    export const useConnectUnifiedAccount = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof connectUnifiedAccount>>, TError,ConnectUnifiedAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof connectUnifiedAccount>>,
+        TError,
+        ConnectUnifiedAccountMutationVariables,
+        TContext
+      > => {
+      return useMutation(getConnectUnifiedAccountMutationOptions(options), queryClient);
+    }
 
 export const getGetStorageReportUrl = (params?: GetStorageReportParams,) => {
   const normalizedParams = new URLSearchParams();

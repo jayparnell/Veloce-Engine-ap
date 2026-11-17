@@ -6,6 +6,51 @@ info:
 servers:
   - url: /api
 paths:
+  /autopilot/unified:
+    get:
+      operationId: getUnifiedPosting
+      responses:
+        "200":
+          description: Safe provider configuration and owner-only discovered accounts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnifiedPosting" }
+    put:
+      operationId: saveUnifiedPosting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UnifiedSelection" }
+      responses:
+        "200":
+          description: Provider selected; automatic posting remains off
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnifiedPosting" }
+  /autopilot/unified/discover:
+    post:
+      operationId: discoverUnifiedAccounts
+      responses:
+        "200":
+          description: Real connected accounts, never synthetic profiles
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnifiedPosting" }
+  /autopilot/unified/accounts:
+    post:
+      operationId: connectUnifiedAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UnifiedAccountSelection" }
+      responses:
+        "200":
+          description: Mapped an owned destination with automatic posting disabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionReceipt" }
   /storage/report:
     get:
       operationId: getStorageReport
@@ -599,6 +644,34 @@ paths:
               schema: { type: object, additionalProperties: true }
 components:
   schemas:
+    UnifiedSelection:
+      type: object
+      required: [provider]
+      properties:
+        provider: { type: string, enum: [ayrshare, late] }
+    UnifiedAccountSelection:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 256 }
+    UnifiedProfile:
+      type: object
+      required: [id, provider, handle]
+      properties:
+        id: { type: string }
+        provider: { type: string }
+        handle: { type: string }
+    UnifiedPosting:
+      type: object
+      required: [provider, keyConfigured, ownerConfigured, ready, message, ownerBinding, accounts]
+      properties:
+        provider: { type: string, enum: [none, ayrshare, late] }
+        keyConfigured: { type: boolean }
+        ownerConfigured: { type: boolean }
+        ready: { type: boolean }
+        message: { type: string }
+        ownerBinding: { type: string }
+        accounts: { type: array, items: { $ref: "#/components/schemas/UnifiedProfile" } }
     StorageRetention:
       type: object
       required: [exportDays, intermediateDays]
@@ -823,6 +896,7 @@ components:
             provider: { type: string }
             platform: { type: string }
             handle: { type: string }
+            postingRoute: { type: string }
             connected: { type: boolean }
             approved: { type: boolean }
             message: { type: string }
@@ -841,6 +915,7 @@ components:
         language: { type: string }
         status: { type: string }
         remoteId: { type: ["string", "null"] }
+        remoteUrl: { type: ["string", "null"] }
         error: { type: ["string", "null"] }
         attempts: { type: integer }
         failureKind: { type: ["string", "null"] }

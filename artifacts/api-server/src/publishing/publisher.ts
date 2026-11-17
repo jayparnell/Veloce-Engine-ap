@@ -11,16 +11,21 @@ import { assignReadyClips } from "./allocator";
 import { startPollLoop } from "../lib/poll-loop";
 import { pollReadiness } from "../lib/worker-readiness";
 import { nextFailure, redactError } from "../lib/failure-policy";
+import { isUnifiedProvider, unifiedPublisher } from "./unifiedPublisher";
+import { requireUnifiedAuthorization } from "./unified-settings";
 
 export async function runPublishWork(work: PublishWork, transport: typeof fetch = fetch) {
   const [account] = await db.select().from(accounts).where(eq(accounts.id, work.accountId));
   const [clip] = await db.select().from(clips).where(and(eq(clips.id, work.clipId), eq(clips.ownerId, work.ownerId)));
   const provider = providerOf(account?.provider);
-  if (!account || !clip || !provider || clip.demo || !clip.objectPath) throw new ProviderError(400, "Private ready clip or supported account not found.");
+  if (!account || account.ownerId !== work.ownerId || !clip || !provider || clip.demo || clip.status !== "ready" || !clip.objectPath) throw new ProviderError(400, "Private ready clip or supported account not found.");
+  const unified = isUnifiedProvider(account.postingRoute) ? account.postingRoute : null;
+  if (!unified && account.postingRoute !== "direct") throw new ProviderError(403, "Posting route configuration is missing.");
   const [config] = await db.select().from(socialConfigsTable).where(and(eq(socialConfigsTable.ownerId, account.ownerId), eq(socialConfigsTable.provider, provider)));
-  if (!account.connected || !account.approved || !account.autoEnabled || !config?.appApproved || !config.clientId) throw new ReviewRequired("Publishing is disabled or application approval is missing. Check account settings before resuming.");
+  if (!account.connected || !account.approved || !account.autoEnabled || (!unified && (!config?.appApproved || !config.clientId))) throw new ReviewRequired("Publishing is disabled or application approval is missing. Check account settings before resuming.");
+  if (unified) await requireUnifiedAuthorization(work.ownerId, unified);
   const required = PROVIDERS[provider].scopes.split(/[,\s]+/), granted = account.scopes.split(/[,\s]+/);
-  if (!required.every((s) => granted.includes(s))) {
+  if (!unified && !required.every((s) => granted.includes(s))) {
     await db.update(queue).set({ status: "blocked", error: "Required posting scopes are missing. Reauthorize this account." }).where(eq(queue.id, work.id)); return;
   }
   // Application-side account quota is conservative; providers enforce their own limits too.
@@ -28,7 +33,8 @@ export async function runPublishWork(work: PublishWork, transport: typeof fetch 
   if (Number(quota.rows[0]?.count) >= 12) {
     await db.update(queue).set({ retryAt: new Date(Date.now() + 3600000), error: "Daily application limit of 12 confirmed posts per account reached." }).where(eq(queue.id, work.id)); return;
   }
-  const token = await accountToken(account.id);
+  const token = !unified || (provider === "tiktok" && account.encryptedTokens && !work.checkpoint.unifiedReceipt)
+    ? await accountToken(account.id) : { access_token: "" };
   const context: AdapterContext = {
     account, clip, token: token.access_token, checkpoint: work.checkpoint, request: transport,
     save: async (key: string, value: unknown) => {
@@ -40,7 +46,8 @@ export async function runPublishWork(work: PublishWork, transport: typeof fetch 
       // Check current authorization immediately before every remote mutation.
       const [live] = await db.select().from(accounts).where(eq(accounts.id, work.accountId));
       const [liveConfig] = await db.select().from(socialConfigsTable).where(and(eq(socialConfigsTable.ownerId, work.ownerId), eq(socialConfigsTable.provider, provider)));
-      if (!live?.connected || !live.autoEnabled || !liveConfig?.appApproved) throw new ReviewRequired("Publishing disabled or account disconnected before this action.");
+      if (!live?.connected || !live.approved || !live.autoEnabled || live.postingRoute !== account.postingRoute || (!unified && !liveConfig?.appApproved)) throw new ReviewRequired("Publishing disabled or account disconnected before this action.");
+      if (unified) await requireUnifiedAuthorization(work.ownerId, unified);
       const existing = context.checkpoint[`effect:${key}`] as { state: string; result: T } | null | undefined;
       if (existing?.state === "done") return existing.result;
       if (existing?.state === "started") throw new ReconciliationRequired("A previous provider request may have succeeded. Reconcile the saved identifiers; no duplicate request was sent.");
@@ -64,13 +71,15 @@ export async function runPublishWork(work: PublishWork, transport: typeof fetch 
     mediaUrl: async () => {
       // Explicitly auto-enabled account authorizes this short-lived provider fetch; object ACL stays private.
       const file = await ownedFile(clip.objectPath!, work.ownerId);
+      const [metadata] = await file.getMetadata();
+      if (Number(metadata.size) > 250 * 1024 ** 2) throw new ProviderError(400, "Clip exceeds the 250 MB unified publishing bound. Use ZIP export.");
       return signObjectURL({ bucketName: file.bucket.name, objectName: file.name, method: "GET", ttlSec: 3600 });
     },
   };
-  const result = await publishAdapter(context);
+  const result = unified ? await unifiedPublisher(context, unified, work.id) : await publishAdapter(context);
   if (result.status === "failed") throw new ProviderError(400, result.error ?? "Provider rejected media processing. Review the saved provider identifiers.");
   if (result.status === "published" && !result.remoteId) throw new ReconciliationRequired("Provider did not confirm a remote post ID.");
-  await db.update(queue).set({ status: result.status, failureKind: null, remoteId: result.remoteId ?? null, error: result.error ?? null, updatedAt: new Date(), retryAt: result.status === "processing" ? new Date(Date.now() + 60000) : null }).where(eq(queue.id, work.id));
+  await db.update(queue).set({ status: result.status, failureKind: null, remoteId: result.remoteId ?? null, remoteUrl: "remoteUrl" in result ? result.remoteUrl as string ?? null : null, error: result.error ?? null, updatedAt: new Date(), retryAt: result.status === "processing" ? new Date(Date.now() + 60000) : null }).where(eq(queue.id, work.id));
 }
 export async function publisherTick(shouldStop = () => false, run = runPublishWork, onlyOwner: string | null = null) {
   const connection = await pool.connect();

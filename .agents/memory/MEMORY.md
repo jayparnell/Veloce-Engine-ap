@@ -7,3 +7,4 @@
 - [Queue test isolation](queue-test-isolation.md) — isolated schemas do not isolate PostgreSQL advisory locks; serialize suites sharing worker locks.
 - [Editor regeneration contract](editor-regeneration-contract.md) — Save stays metadata-only; explicit regeneration replaces media atomically, and exports use the rendered copy.
 - [Cleanup reservations](storage-cleanup-reservations.md) — reserve paths before deletion; never auto-release or replay uncertain operations, even when provider locks are no longer held.
+- [Unified posting safety](unified-posting-safety.md) — Late is now Zernio; use canonical hosts without redirects and bind the shared posting key to an explicit owner.

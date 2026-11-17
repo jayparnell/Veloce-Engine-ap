@@ -8,6 +8,68 @@
 import * as zod from 'zod';
 
 
+export const GetUnifiedPostingResponse = zod.object({
+  "provider": zod.enum(['none', 'ayrshare', 'late']),
+  "keyConfigured": zod.boolean(),
+  "ownerConfigured": zod.boolean(),
+  "ready": zod.boolean(),
+  "message": zod.string(),
+  "ownerBinding": zod.string(),
+  "accounts": zod.array(zod.object({
+  "id": zod.string(),
+  "provider": zod.string(),
+  "handle": zod.string()
+}))
+})
+
+
+export const SaveUnifiedPostingBody = zod.object({
+  "provider": zod.enum(['ayrshare', 'late'])
+})
+
+export const SaveUnifiedPostingResponse = zod.object({
+  "provider": zod.enum(['none', 'ayrshare', 'late']),
+  "keyConfigured": zod.boolean(),
+  "ownerConfigured": zod.boolean(),
+  "ready": zod.boolean(),
+  "message": zod.string(),
+  "ownerBinding": zod.string(),
+  "accounts": zod.array(zod.object({
+  "id": zod.string(),
+  "provider": zod.string(),
+  "handle": zod.string()
+}))
+})
+
+
+export const DiscoverUnifiedAccountsResponse = zod.object({
+  "provider": zod.enum(['none', 'ayrshare', 'late']),
+  "keyConfigured": zod.boolean(),
+  "ownerConfigured": zod.boolean(),
+  "ready": zod.boolean(),
+  "message": zod.string(),
+  "ownerBinding": zod.string(),
+  "accounts": zod.array(zod.object({
+  "id": zod.string(),
+  "provider": zod.string(),
+  "handle": zod.string()
+}))
+})
+
+
+export const connectUnifiedAccountBodyIdMax = 256;
+
+
+
+export const ConnectUnifiedAccountBody = zod.object({
+  "id": zod.string().min(1).max(connectUnifiedAccountBodyIdMax)
+})
+
+export const ConnectUnifiedAccountResponse = zod.object({
+  "message": zod.string()
+})
+
+
 export const getStorageReportQueryCursorMax = 512;
 
 export const getStorageReportQueryLimitDefault = 50;
@@ -584,6 +646,7 @@ export const GetAutopilotAccountsResponseItem = zod.object({
   "provider": zod.string(),
   "platform": zod.string(),
   "handle": zod.string(),
+  "postingRoute": zod.string().optional(),
   "connected": zod.boolean(),
   "approved": zod.boolean(),
   "message": zod.string()
@@ -626,6 +689,7 @@ export const UpdateAutopilotAccountResponse = zod.object({
   "provider": zod.string(),
   "platform": zod.string(),
   "handle": zod.string(),
+  "postingRoute": zod.string().optional(),
   "connected": zod.boolean(),
   "approved": zod.boolean(),
   "message": zod.string()
@@ -652,6 +716,7 @@ export const GetAutopilotScheduleResponse = zod.object({
   "language": zod.string(),
   "status": zod.string(),
   "remoteId": zod.string().nullish(),
+  "remoteUrl": zod.string().nullish(),
   "error": zod.string().nullish(),
   "attempts": zod.number().int().optional(),
   "failureKind": zod.string().nullish(),

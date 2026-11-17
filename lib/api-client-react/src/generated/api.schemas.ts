@@ -5,6 +5,51 @@
  * Veloce Engine content production API
  * OpenAPI spec version: 1.0.0
  */
+export type UnifiedSelectionProvider = typeof UnifiedSelectionProvider[keyof typeof UnifiedSelectionProvider];
+
+
+export const UnifiedSelectionProvider = {
+  ayrshare: 'ayrshare',
+  late: 'late',
+} as const;
+
+export interface UnifiedSelection {
+  provider: UnifiedSelectionProvider;
+}
+
+export interface UnifiedAccountSelection {
+  /**
+     * @minLength 1
+     * @maxLength 256
+     */
+  id: string;
+}
+
+export interface UnifiedProfile {
+  id: string;
+  provider: string;
+  handle: string;
+}
+
+export type UnifiedPostingProvider = typeof UnifiedPostingProvider[keyof typeof UnifiedPostingProvider];
+
+
+export const UnifiedPostingProvider = {
+  none: 'none',
+  ayrshare: 'ayrshare',
+  late: 'late',
+} as const;
+
+export interface UnifiedPosting {
+  provider: UnifiedPostingProvider;
+  keyConfigured: boolean;
+  ownerConfigured: boolean;
+  ready: boolean;
+  message: string;
+  ownerBinding: string;
+  accounts: UnifiedProfile[];
+}
+
 export interface StorageRetention {
   /**
      * @minimum 7
@@ -338,6 +383,7 @@ export type AutopilotAccount = AccountPreferences & {
   provider: string;
   platform: string;
   handle: string;
+  postingRoute?: string;
   connected: boolean;
   approved: boolean;
   message: string;
@@ -356,6 +402,8 @@ export interface PublishEntry {
   status: string;
   /** @nullable */
   remoteId?: string | null;
+  /** @nullable */
+  remoteUrl?: string | null;
   /** @nullable */
   error?: string | null;
   attempts?: number;

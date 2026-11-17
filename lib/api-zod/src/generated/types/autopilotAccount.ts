@@ -12,6 +12,7 @@ export type AutopilotAccount = AccountPreferences & {
   provider: string;
   platform: string;
   handle: string;
+  postingRoute?: string;
   connected: boolean;
   approved: boolean;
   message: string;

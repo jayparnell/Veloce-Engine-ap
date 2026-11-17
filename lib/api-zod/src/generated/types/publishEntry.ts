@@ -20,6 +20,8 @@ export interface PublishEntry {
   /** @nullable */
   remoteId?: string | null;
   /** @nullable */
+  remoteUrl?: string | null;
+  /** @nullable */
   error?: string | null;
   attempts?: number;
   /** @nullable */

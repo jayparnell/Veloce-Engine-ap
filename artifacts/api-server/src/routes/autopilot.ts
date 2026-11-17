@@ -13,6 +13,8 @@ import { GetRenderBudgetResponse, UpdateRenderBudgetBody, UpdateRenderBudgetResp
 import { redactError } from "../lib/failure-policy";
 import { GetAutopilotUsageQueryParams, GetAutopilotUsageResponse, UpdateAIUsageLimitBody, UpdateAIUsageLimitResponse } from "@workspace/api-zod";
 import { usageReport, setUsageLimit } from "../lib/ai-usage";
+import { isUnifiedProvider } from "../publishing/unifiedPublisher";
+import { unifiedAuthorized } from "../publishing/unified-settings";
 
 const router: IRouter = Router();
 router.use("/autopilot", (req, res, next) => {
@@ -153,7 +155,7 @@ router.post("/autopilot/dub", async (req, res): Promise<void> => {
   } catch (error) { if (!(error instanceof InputError)) throw error; res.status(error.code).json({ error: error.message }); }
 });
 export function publicAccount(a: typeof accounts.$inferSelect) {
-  return { id: a.id, provider: a.provider, platform: a.platform, handle: a.handle, connected: a.connected, approved: a.approved,
+  return { id: a.id, provider: a.provider, postingRoute: a.postingRoute, platform: a.platform, handle: a.handle, connected: a.connected, approved: a.approved,
     autoEnabled: a.autoEnabled, includeDubs: a.includeDubs, timezone: a.timezone, slots: a.slots,
     message: a.error ?? (!a.connected ? "Reconnect this account. Exports remain available." : !a.approved ? "Platform approval is required." : a.autoEnabled ? "Automatic publishing enabled while publisher service is running." : "Authorized. Automatic publishing is off.") };
 }
@@ -165,7 +167,8 @@ router.patch("/autopilot/accounts/:id", async (req, res): Promise<void> => {
   if (!params.success || !input.success || !validTimezone(input.data.timezone)) { res.status(400).json({ error: "Use an IANA timezone and 1–12 distinct HH:mm slots." }); return; }
   const [account] = await db.select().from(accounts).where(and(eq(accounts.ownerId, req.workspaceId), eq(accounts.id, params.data.id)));
   if (!account) { res.status(404).json({ error: "Account not found." }); return; }
-  if (input.data.autoEnabled && (!account.connected || !account.approved || !account.encryptedTokens)) { res.status(409).json({ error: "Connect an approved account before explicitly enabling automatic posting." }); return; }
+  const authorized = isUnifiedProvider(account.postingRoute) ? await unifiedAuthorized(account.ownerId, account.postingRoute) : Boolean(account.encryptedTokens);
+  if (input.data.autoEnabled && (!account.connected || !account.approved || !authorized)) { res.status(409).json({ error: "Connect an approved account and configure its selected posting route before explicitly enabling automatic posting. ZIP export remains available." }); return; }
   const [row] = await db.update(accounts).set({ ...input.data, ...(!account.autoEnabled && input.data.autoEnabled ? { autoEnabledAt: new Date() } : {}), slots: [...new Set(input.data.slots)].sort() }).where(eq(accounts.id, account.id)).returning();
   if (row!.autoEnabled) await assignReadyClips(account.ownerId, account.id);
   res.json(UpdateAutopilotAccountResponse.parse(publicAccount(row!)));
