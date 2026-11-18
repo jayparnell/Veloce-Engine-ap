@@ -87,7 +87,7 @@ function JobCard({ j, onAction, pack, dub }: { j: SwarmJob; onAction: (a: JobAct
         <div className="flex flex-wrap gap-1.5 mt-3">
           {(live || ["retry", "budget_paused", "uncertain"].includes(j.status)) && <button className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-white/[0.08] text-[12px] hover:bg-white/[0.05]" onClick={() => onAction("cancel")} data-testid={`button-cancel-${j.id}`}><Ban className="w-3.5 h-3.5" />Cancel</button>}
           {!live && (isFailed(j.status) || isCancelled(j.status)) && <button className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-white/[0.08] text-[12px] hover:bg-white/[0.05]" onClick={() => onAction("retry")} data-testid={`button-retry-${j.id}`}><RotateCw className="w-3.5 h-3.5" />Retry</button>}
-          {uncertain && <button className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-amber-500/30 text-amber-300 text-[12px] hover:bg-amber-500/10" onClick={() => onAction("acknowledge-uncertain")} data-testid={`button-ack-${j.id}`}><AlertTriangle className="w-3.5 h-3.5" />Review uncertain billing</button>}
+          {uncertain && <span className="text-[12px] text-amber-300">Automatic AI recovery pending</span>}
           {readyIds.length > 1 && <DubButton className="h-8" pending={dub.pending} onClick={() => dub.start(readyIds)} testId={`button-dub-batch-${j.id}`}>Clone & Dub (ES / PT) all {readyIds.length}</DubButton>}
           {readyIds.length > 0 && <Link href="/vault" className="inline-flex items-center gap-1 h-8 px-2 text-[12px] text-emerald-400 hover:text-emerald-300">Vault <ArrowUpRight className="w-3 h-3" /></Link>}
         </div>
@@ -104,7 +104,7 @@ function JobCard({ j, onAction, pack, dub }: { j: SwarmJob; onAction: (a: JobAct
 const CONFIRM: Record<JobActionAction, { title: string; body: string; cta: string }> = {
   cancel: { title: "Cancel this source?", body: "Processing stops at the next safe point. Compute or AI usage already started may still be billed, and the exact amount can be uncertain until the provider settles it.", cta: "I understand, cancel" },
   retry: { title: "Retry this source?", body: "A new attempt re-runs the failed stages. The previous attempt may already have incurred usage that cannot be confirmed yet, and the retry adds its own usage.", cta: "I understand, retry" },
-  "acknowledge-uncertain": { title: "Retry with uncertain previous usage?", body: "The provider may already have completed and billed an unfinished request. This action queues the job again and permits those unfinished AI calls to run again, which may incur additional usage. Saved successful results are reused. This does not refund earlier usage.", cta: "I understand, retry unfinished calls" },
+  "acknowledge-uncertain": { title: "Retry this source?", body: "Saved successful results are reused. AI calls retry automatically up to three times, including ambiguous timeouts; earlier usage remains recorded and retries can incur additional charges.", cta: "Retry source" },
 };
 
 export default function Studio() {

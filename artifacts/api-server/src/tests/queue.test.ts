@@ -75,17 +75,16 @@ test("actual PostgreSQL worker slots cap live jobs at five and recover checkpoin
   assert.equal(freshCalls, 0, "restart must reuse successful AI work");
   await db.update(jobs).set({ status: "cancelled", cancelRequested: true }).where(and(eq(jobs.ownerId, owner), eq(jobs.status, "queued")));
 });
-test("ambiguous started AI calls pause without any provider repeat", async () => {
+test("interrupted AI calls recover automatically once and reuse their saved result", async () => {
   const job = await createJob();
   await db.insert(aiCheckpointsTable).values({ jobId: job.id, callKey: "voice:0", status: "started" });
   let calls = 0;
   await runSlot(0, async (ctx) => {
-    await assert.rejects(ctx.ai("voice:0", async () => { calls++; return { objectPath: "/objects/should-not-exist" }; }), UncertainCallError);
-    // Let the worker classify the same uncertainty rather than hiding it.
-    await ctx.ai("voice:0", async () => ({ objectPath: "/objects/should-not-exist" }));
+    await ctx.ai("voice:0", async () => { calls++; return { objectPath: "/objects/fixture" }; });
+    await ctx.ai("voice:0", async () => assert.fail("completed AI must not repeat"));
   }, owner);
   const [saved] = await db.select().from(jobs).where(eq(jobs.id, job.id));
-  assert.equal(calls, 0); assert.equal(saved!.status, "uncertain");
+  assert.equal(calls, 1); assert.equal(saved!.status, "completed");
 });
 test("cancellation stops at a checkpoint and preserves existing results", async () => {
   const job = await createJob();

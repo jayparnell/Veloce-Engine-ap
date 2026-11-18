@@ -146,15 +146,15 @@ test("worker retries once after 60 seconds, persists failures, reuses AI checkpo
   await runSlot(4, fail, o);
   assert.equal((await getJob(j.id)).failures, 2);
 });
-test("unfinished AI requests pause with no automatic repeat; permanent access failures never retry", async () => {
+test("unfinished AI requests recover automatically; permanent source access failures never retry", async () => {
   const o = owner(), j = await makeJob(o, false);
   await db.insert(ai).values({ jobId: j.id, callKey: "uncertain", status: "started" });
   let calls = 0;
   await runSlot(0, async (ctx) => { await ctx.ai("uncertain", async () => { calls++; return {}; }); }, o);
-  assert.equal(calls, 0);
-  assert.equal((await getJob(j.id)).status, "uncertain");
+  assert.equal(calls, 1);
+  assert.equal((await getJob(j.id)).status, "completed");
   await runSlot(1, async () => { calls++; }, o);
-  assert.equal(calls, 0);
+  assert.equal(calls, 1);
   const blocked = await makeJob(owner(), false);
   await runSlot(0, async () => { throw new Error("HTTP Error 403: private source; sign in required"); }, blocked.ownerId);
   assert.equal((await getJob(blocked.id)).status, "failed");
@@ -292,8 +292,7 @@ test("budget API persists owner settings, rejects invalid/lower caps and protect
     const uncertain = await makeJob(o, false);
     await db.update(jobs).set({ status: "cancelled", cancelRequested: true }).where(eq(jobs.id, uncertain.id));
     await db.insert(ai).values({ jobId: uncertain.id, callKey: "ambiguous", status: "started" });
-    assert.equal((await request(`/autopilot/jobs/${uncertain.id}/action`, "POST", { action: "retry" })).status, 409);
-    assert.equal((await request(`/autopilot/jobs/${uncertain.id}/action`, "POST", { action: "acknowledge-uncertain" })).status, 200);
+    assert.equal((await request(`/autopilot/jobs/${uncertain.id}/action`, "POST", { action: "retry" })).status, 200);
     assert.equal((await db.select().from(ai).where(eq(ai.jobId, uncertain.id))).length, 0);
     await db.update(jobs).set({ status: "failed", retryAt: new Date(Date.now() + 86400000) }).where(eq(jobs.id, uncertain.id));
     assert.equal((await request(`/autopilot/jobs/${uncertain.id}/action`, "POST", { action: "retry" })).status, 409);

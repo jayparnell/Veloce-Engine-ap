@@ -92,7 +92,7 @@ export function AIUsagePanel() {
     <section className="panel my-4 overflow-hidden text-[12px] rise" data-testid="ai-usage">
       <div className="px-4 py-3 border-b border-white/[0.05] flex flex-wrap items-center gap-2">
         <Gauge className="w-3.5 h-3.5 text-emerald-400" />
-        <h2 className="text-[13.5px] font-semibold">Managed AI usage</h2>
+        <h2 className="text-[13.5px] font-semibold">AI usage</h2>
         <Pill tone="neutral">owner only</Pill>
         <span className="mono text-[10.5px] text-zinc-500">rolling 24h + unresolved in-flight</span>
         {usage.isFetching && <span className="mono text-[10.5px] text-zinc-600 ml-auto">syncing</span>}
@@ -173,7 +173,7 @@ export function AIUsagePanel() {
 
       <div className="border-t border-white/[0.06] bg-white/[0.012] px-4 py-3 space-y-1.5 text-[11.5px] text-zinc-400 leading-relaxed" data-testid="text-ai-disclaimer">
         {d.notice && <p>{d.notice}</p>}
-        <p>Request units are a conservative internal count: one per new durable AI checkpoint attempt. Reused saved checkpoints add nothing; an acknowledged uncertain retry is a new attempt and earlier history stays. Units are not tokens, Replit credits or currency, and the cap is not an exact spending cap. Token counts are provider-reported only; "unknown" means not reported, never zero. Audio tokens are part of the total, not added to it.</p>
+        <p>Request units count new durable AI checkpoint attempts. Saved-result reuse adds nothing; automatic retries are new attempts and earlier history stays. Direct OpenAI calls use your key when configured; otherwise managed AI is used. Ambiguous retries can incur additional charges. Units are not tokens, credits or currency, and the cap is not an exact spending cap. Token counts are provider-reported only; unknown never means zero. Audio tokens are part of the total.</p>
         <a href="https://docs.replit.com/billing/ai-billing" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300" data-testid="link-replit-ai-billing">Official Replit AI billing <ArrowUpRight className="w-3 h-3" /></a>
       </div>
     </section>

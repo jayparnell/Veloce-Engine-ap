@@ -9,6 +9,12 @@ The user's newer pipeline brief overrides the earlier managed-only billing choic
 
 **How to apply:** Apply the selected billing route consistently to transcription, scripting and voiceover calls. Do not silently reroute a failing direct-key request to a different billing source. Social-platform OAuth credentials are separate from this AI billing choice.
 
+AI requests should retry transient failures, 429s and ambiguous network timeouts automatically up to three times, without a manual uncertain-billing approval hold.
+
+**Why:** The user explicitly chose “Retry automatically despite billing risk” after being told that retries can incur another OpenAI charge and a local idempotency key cannot guarantee external billing deduplication.
+
+**How to apply:** Keep durable attempt history, completed-result reuse, exponential backoff, provider cooldowns, quotas, cancellation and lease fencing. Fail clearly after the retry allowance. This consent applies to AI processing, not ambiguous social-posting writes or publishing consent.
+
 Usage reporting must distinguish provider metrics, conservative internal request units, and actual Replit credit charges. Never convert tokens or request units into credits or currency without an official supported charge source.
 
 **Why:** Creators need useful limits even when a provider omits usage or a request has an uncertain outcome; a fabricated credit conversion would imply a spending guarantee the app cannot enforce.

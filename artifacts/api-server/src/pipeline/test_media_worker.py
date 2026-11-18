@@ -12,6 +12,25 @@ spec.loader.exec_module(worker)
 
 
 class MediaWorkerTests(unittest.TestCase):
+    def test_production_refuses_estimated_word_timing_before_rendering(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "missing.json"
+            path.write_text('{"requireWordTiming":true}')
+            with self.assertRaisesRegex(ValueError, "Word-timed captions are required"):
+                worker.render(path)
+
+    def test_caption_groups_and_ass_clock_rollover(self):
+        self.assertEqual(worker.ass_time(59.9999), "0:01:00.00")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "five.ass"
+            words = [{"text": word, "start": i / 2, "end": (i + 1) / 2} for i, word in enumerate("ONE TWO THREE FOUR FIVE".split())]
+            worker.captions_file(path, "", words, 3, [])
+            events = [s for s in path.read_text().splitlines() if ",Caption,," in s]
+            self.assertEqual(len(events), 5)
+            self.assertNotIn("FOUR", events[0])
+            self.assertIn("FOUR", events[-1])
+            self.assertIn("FIVE", events[-1])
+
     def test_full_hour_limit_without_truncation(self):
         for duration in [30, 601, 1801, 3599.9, 3600]:
             worker.validate_source_duration(duration)
@@ -40,11 +59,12 @@ class MediaWorkerTests(unittest.TestCase):
             worker.captions_file(path, "The hook", words, 3, [])
             text = path.read_text()
             self.assertEqual(text.count(",Caption,,"), 3)
-            self.assertIn(r"\fscx90", text)
-            self.assertIn(r"\c&H0056D9A8&", text)
+            self.assertIn(r"\fscx110", text)
+            self.assertIn(r"\c&H0000E6FF&", text)
             self.assertIn(r"\c&H00FFFFFF&", text)
-            self.assertIn("One", text)
-            self.assertIn("word", text)
+            self.assertIn("ONE", text)
+            self.assertIn("WORD", text)
+            self.assertIn(r"\pos(540,1180)", text)
 
     def test_estimated_caption_accuracy_on_labeled_synthetic_fixture(self):
         # These reference boundaries are an explicit synthetic fixture, not a claim about human speech.

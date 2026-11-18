@@ -13,6 +13,8 @@ import wave
 import re
 import textwrap
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from reframe import sample_people, plan_scenes, reframe_filter, retention_zoom
 
 
 def run(args):
@@ -90,8 +92,8 @@ def ass_text(text):
 
 
 def ass_time(seconds):
-    seconds = max(0, seconds)
-    return f"{int(seconds // 3600)}:{int(seconds % 3600 // 60):02d}:{seconds % 60:05.2f}"
+    ticks = round(max(0, seconds) * 100)
+    return f"{ticks // 360000}:{ticks // 6000 % 60:02d}:{ticks // 100 % 60:02d}.{ticks % 100:02d}"
 
 
 def speech_intervals(audio, work):
@@ -161,20 +163,26 @@ WrapStyle: 0
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Hook,DejaVu Sans,64,&H00FFFFFF,&H000000FF,&H00101010,&H80000000,-1,0,0,0,100,100,0,0,1,4,1,8,70,70,140,1
-Style: Caption,DejaVu Sans,52,&H00FFFFFF,&H000000FF,&H00101010,&H80000000,-1,0,0,0,100,100,0,0,1,4,1,2,80,80,300,1
+Style: Caption,DejaVu Sans,64,&H00FFFFFF,&H0000E6FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,5,90,90,0,1
 Style: Chapter,DejaVu Sans,42,&H0056D9A8,&H000000FF,&H00101010,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,8,70,70,340,1
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events = [f"Dialogue: 0,0:00:00.00,{ass_time(min(duration, 3))},Hook,,0,0,0,,{{\\fad(120,200)}}{ass_text(hook)}"]
+    groups = {}
+    cursor = 0
+    while cursor < len(words):
+        count = 3 if len(words) - cursor == 5 else min(4, len(words) - cursor)
+        for i in range(cursor, cursor + count):
+            groups[i] = (cursor, cursor + count)
+        cursor += count
     for index, word in enumerate(words):
-        # Keep neighboring words visible; only the currently spoken word is emerald.
-        group_start = index // 4 * 4
+        group_start, group_end = groups[index]
         phrase = []
-        for j in range(group_start, min(len(words), group_start + 4)):
-            color = r"{\c&H0056D9A8&\b1}" if j == index else r"{\c&H00FFFFFF&}"
-            phrase.append(color + ass_text(words[j]["text"]))
-        effect = r"{\fad(20,40)\fscx90\fscy90\t(0,70,\fscx100\fscy100)}"
+        for j in range(group_start, group_end):
+            color = r"{\c&H0000E6FF&\fscx110\fscy110\t(0,90,\fscx100\fscy100)}" if j == index else r"{\c&H00FFFFFF&\fscx100\fscy100}"
+            phrase.append(color + ass_text(words[j]["text"].upper()))
+        effect = r"{\an5\pos(540,1180)\blur0.3\xshad2\yshad3}"
         events.append(f"Dialogue: 0,{ass_time(word['start'])},{ass_time(word['end'])},Caption,,0,0,0,,{effect}{' '.join(phrase)}")
     for start, title in chapters:
         events.append(f"Dialogue: 1,{ass_time(start)},{ass_time(start + 2.5)},Chapter,,0,0,0,,{{\\fad(150,200)}}{ass_text(title)}")
@@ -264,6 +272,8 @@ def retained_words(path, duration):
 
 def render(config_path):
     config = json.loads(Path(config_path).read_text())
+    if config.get("requireWordTiming") and not config.get("captionsInput"):
+        raise ValueError("Word-timed captions are required; refusing estimated caption timing")
     work = Path(config_path).parent
     parts = []
     chapters = []
@@ -277,23 +287,9 @@ def render(config_path):
             raise ValueError("Invalid source edit interval")
         output = str(work / f"{Path(config_path).stem}-part-{index}.mp4")
         inputs = ["ffmpeg", "-v", "error", "-y", "-ss", str(segment["start"]), "-t", str(length), "-i", config["source"]]
-        points, split = track_faces(config["source"], segment["start"], length)
-        if not config.get("pictureInPicture", True):
-            points, split = [], False
-        if points and split:
-            crop = min(width, height, max(2, int(max(p["size"] for p in points) * max(width, height) * 2.2) // 2 * 2))
-            x = tracking_expression(points, "x", width, crop)
-            y = tracking_expression(points, "y", height, crop)
-            filters = f"[0:v]split=2[content][cam];[content]scale=1080:1280:force_original_aspect_ratio=decrease,pad=1080:1280:(ow-iw)/2:(oh-ih)/2,setsar=1[base];[cam]crop={crop}:{crop}:x='{x}':y='{y}',scale=1080:640:force_original_aspect_ratio=increase,crop=1080:640,setsar=1[face];[face][base]vstack=inputs=2,fps=60[v]"
-        elif points:
-            crop_h = min(height, int(width * 16 / 9) // 2 * 2)
-            crop_w = min(width, int(crop_h * 9 / 16) // 2 * 2)
-            x = tracking_expression(points, "x", width, crop_w)
-            y = tracking_expression(points, "y", height, crop_h)
-            filters = f"[0:v]crop={crop_w}:{crop_h}:x='{x}':y='{y}',scale=1080:1920,setsar=1,fps=60[v]"
-        else:
-            # No face evidence: preserve all source content in a bounded fit, not an invented webcam.
-            filters = "[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x09090B,setsar=1,fps=60[v]"
+        observations = sample_people(config["source"], segment["start"], length) if config.get("pictureInPicture", True) else []
+        scenes = plan_scenes(observations, length, width, height)
+        filters = reframe_filter(scenes, width, height)
         run(inputs + ["-filter_complex_threads", "1", "-filter_complex", filters, "-map", "[v]", "-map", "0:a:0", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-threads", "2", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-pix_fmt", "yuv420p", output])
         parts.append(output)
         chapters.append((elapsed, f"{index + 1:02d} / {segment['title']}"))
@@ -325,8 +321,9 @@ def render(config_path):
         f"[0:a]{source_ducking(intervals)}[src]",
         "[1:a]apad[voice]",
         "[src][voice]amix=inputs=2:duration=first:normalize=0[mix]",
-        (f"[0:v]drawbox=x=40:y=110:w=1000:h=300:color=black@0.72:t=fill:enable='lt(t,3)',ass={ass}[sub]"
-         if config["hook"] else f"[0:v]ass={ass}[sub]"),
+        f"[0:v]{retention_zoom()}[polished]",
+        (f"[polished]drawbox=x=40:y=110:w=1000:h=300:color=black@0.72:t=fill:enable='lt(t,3)',ass={ass}[sub]"
+         if config["hook"] else f"[polished]ass={ass}[sub]"),
     ]
     audio_label = "mix"
     video_label = "sub"
@@ -340,9 +337,11 @@ def render(config_path):
         inputs += ["-i", config["watermark"]]
         filters += [f"[{next_input}:v]scale=180:-1[mark]", "[sub][mark]overlay=60:600[marked]"]
         video_label = "marked"
+    filters.append(f"[{audio_label}]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[normalized]")
+    audio_label = "normalized"
     rendered = str(work / f"{Path(config_path).stem}-rendered.mp4")
     run(inputs + ["-filter_complex_threads", "1", "-filter_complex", ";".join(filters), "-map", f"[{video_label}]", "-map", f"[{audio_label}]", "-t", str(elapsed),
-                  "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-threads", "2", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-pix_fmt", "yuv420p", "-movflags", "+faststart", rendered])
+                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "2", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "-pix_fmt", "yuv420p", "-movflags", "+faststart", rendered])
     if config["mode"] == "bounty":
         cta = str(work / f"{Path(config_path).stem}-cta.txt")
         Path(cta).write_text(textwrap.fill(config.get("cta", "Follow for more")[:100], width=32))

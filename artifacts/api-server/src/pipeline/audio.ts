@@ -1,17 +1,17 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
-import { speechToText } from "@workspace/integrations-openai-ai-server/audio";
+import { openai } from "../lib/ai-client";
 import { batchProcess } from "@workspace/integrations-openai-ai-server/batch";
 import { readFile } from "node:fs/promises";
 import { captureManagedUsage } from "../lib/ai-usage";
+import { transcribeWords } from "./word-transcription";
 
 export async function transcribeSource(chunks: { path: string; start: number; end: number }[]) {
   return batchProcess(chunks, async (chunk) => {
-    const text = await speechToText(await readFile(chunk.path), "mp3");
-    return { start: chunk.start, end: chunk.end, text: text.trim() };
+    const result = await transcribeWords(chunk.path, chunk.end - chunk.start);
+    return { start: chunk.start, end: chunk.end, text: result.text };
   }, { concurrency: 2, retries: 3, maxTimeout: 15000 });
 }
 
-/** Managed chat/audio endpoint only: no external speech API or user API key. */
+/** Uses the shared billing route, including direct BYOK when configured. */
 export async function synthesizeVoiceover(script: string, language = "en", signal?: AbortSignal) {
   const [result] = await batchProcess([script], async (text) => {
     const response = await openai.chat.completions.create({

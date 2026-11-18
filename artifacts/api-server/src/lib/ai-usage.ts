@@ -8,11 +8,11 @@ import { RenderBudgetPaused } from "./render-budget";
 export class AIUsagePaused extends RenderBudgetPaused {
   constructor(resetAt: Date) {
     super(resetAt);
-    this.message = "Managed AI request-unit limit reached. Saved results are reused; new calls pause until allowance is available or you increase the limit.";
+    this.message = "AI request-unit limit reached. Saved results are reused; new calls pause until allowance is available or you increase the limit.";
   }
 }
 // Every simultaneous checkpoint has its own receipt, including overlapping transcription chunks.
-export const aiUsageContext = new AsyncLocalStorage<{ id: number; responded: boolean }>();
+export const aiUsageContext = new AsyncLocalStorage<{ id: number; responded: boolean; requestKey?: string }>();
 export async function captureManagedUsage(response: unknown, model: string) {
   const invocation = aiUsageContext.getStore();
   if (invocation === undefined) return; // Non-durable legacy helpers are outside this ledger.
@@ -42,7 +42,7 @@ export async function usageReport(owner: string, before?: number) {
       dailyJobs: Number(jobs.daily), dailyJobLimit: 20, remainingDailyJobs: Math.max(0, 20 - Number(jobs.daily)),
       groups, entries: history.slice(0, 100).map((r) => ({ ...r, metrics: r.metrics ?? unknownMetrics(), createdAt: r.createdAt.toISOString() })),
       nextBefore: history.length > 100 ? history[99]!.id : null,
-      notice: "Rolling 24 hours, plus unresolved in-flight requests. One request unit per new durable AI checkpoint attempt; saved-result reuse costs no new units. Definitive rejections use zero units; uncertain attempts remain counted. Provider metrics are partial known subtotals, not Replit credits or currency. Audio tokens are included in token totals, not extra. Historical metrics and attempts removed before tracking began are unknown. Usage receipts survive media deletion. This limit is not an exact spending cap." };
+      notice: `${process.env.OPENAI_API_KEY?.trim() ? "Current route: direct OpenAI, billed to your OpenAI account." : "Current route: managed AI."} Rolling 24 hours, plus unresolved in-flight requests. Each new durable attempt uses one internal request unit; saved-result reuse adds none. Definitive rejections use zero units. Uncertain attempts remain counted; automatic retries can incur additional charges. Provider metrics are partial known subtotals, not credits or currency. Receipts survive media deletion. This limit is not an exact spending cap.` };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 export async function setUsageLimit(owner: string, limit: number | null) {

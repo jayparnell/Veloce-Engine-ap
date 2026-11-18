@@ -13,7 +13,7 @@ export type RenderRecipe = {
   watermark?: string;
   cta?: string;
 };
-export type RenderInfo = { version: number; snapshot: RenderSnapshot; recipe: RenderRecipe };
+export type RenderInfo = { version: number; snapshot: RenderSnapshot; recipe: RenderRecipe; captionTiming?: "asr-word" };
 
 export const projectsTable = pgTable("projects", {
   id: serial("id").primaryKey(),

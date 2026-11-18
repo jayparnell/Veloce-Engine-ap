@@ -17,7 +17,7 @@ router.post("/clips/:id/regenerate", async (req, res): Promise<void> => {
     if (!clip) return { code: 404, error: "Clip not found." };
     const [previous] = clip.regenerationJobId ? await tx.select().from(jobs).where(eq(jobs.id, clip.regenerationJobId)) : [];
     // Resume failed/uncertain work through the existing explicit job controls, never launch a second paid request.
-    if (previous && previous.status !== "completed") return { code: 409, error: "This clip already has a regeneration job. Open Autopilot to retry, cancel or acknowledge uncertain AI usage." };
+    if (previous && previous.status !== "completed") return { code: 409, error: "This clip already has a regeneration job. Open Autopilot to view progress, retry or cancel it." };
     const info = await renderInfo(clip);
     if (clip.demo || !info || !clip.voiceoverObjectPath) return { code: 409, error: "This historical clip has no retained render inputs. It remains playable; create a new source batch to enable regeneration." };
     if (!outdated(clip, info)) return { code: 409, error: "Save changes before regenerating this version." };
@@ -31,7 +31,7 @@ router.post("/clips/:id/regenerate", async (req, res): Promise<void> => {
         clipId: clip.id, version: info.version + 1, snapshot: snapshot(clip), recipe: info.recipe,
         previousScript: info.snapshot.script, voicePath: clip.voiceoverObjectPath, captionsPath: clip.captionsObjectPath,
       } },
-      notice: "Explicit editor regeneration. Previous playable version is preserved until all replacement files pass checks. Changed narration uses Replit-hosted gpt-audio and credits.",
+      notice: "Explicit editor regeneration. Previous playable version is preserved until replacement files pass checks. AI uses your direct OpenAI key when configured, otherwise managed AI; automatic retries may incur additional usage.",
     }).returning();
     await tx.insert(admissions).values({ ownerId: clip.ownerId, projectId: clip.projectId, jobId: job!.id, requestKey, inputHash: requestKey });
     const [updated] = await tx.update(clips).set({ renderInfo: info, regenerationJobId: job!.id }).where(eq(clips.id, clip.id)).returning();

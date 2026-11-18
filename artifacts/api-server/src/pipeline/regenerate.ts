@@ -9,6 +9,7 @@ import { synthesizeVoiceover } from "./audio";
 import { ownedFile, storeLocalFile } from "../lib/mediaStorage";
 import { workspaceRoot, mediaPython, mediaRenderer } from "./paths";
 import { commitOutput } from "../lib/render-budget";
+import { alignVoice } from "./caption-alignment";
 
 export type Regeneration = RenderInfo & {
   clipId: number; previousScript: string; voicePath: string; captionsPath: string | null;
@@ -20,6 +21,7 @@ const storage = {
   },
   persist: storeLocalFile,
   synthesize: synthesizeVoiceover,
+  align: alignVoice,
   render: async (path: string) => { await command(mediaPython, [mediaRenderer, "render", path], 900000); },
 };
 
@@ -51,7 +53,8 @@ export async function runRegeneration(ctx: JobContext, connection: PoolClient, s
         return { objectPath: await services.persist(path, owner, "audio/mpeg"), transcript: result.transcript };
       }) : { objectPath: request.voicePath, transcript: request.previousScript };
       const voiceFile = await hydrate(String(voice.objectPath), "voice.mp3");
-      const captionsInput = !changed && request.captionsPath ? await hydrate(request.captionsPath, "previous.srt") : undefined;
+      const captionsInput = !changed && request.captionsPath && clip.renderInfo?.captionTiming === "asr-word" ? await hydrate(request.captionsPath, "previous.srt") :
+        await (services.align ?? alignVoice)(voiceFile, request.recipe.segments.reduce((n, s) => n + Math.min(45, s.end - s.start), 0), dir, ctx, "editor");
       const sponsorAudio = request.recipe.sponsorAudio ? await hydrate(request.recipe.sponsorAudio, "sponsor") : undefined;
       const watermark = request.recipe.watermark ? await hydrate(request.recipe.watermark, "watermark") : undefined;
       const output = join(dir, "video.mp4"), poster = join(dir, "poster.jpg"), captionsOutput = join(dir, "captions.srt");
@@ -59,8 +62,8 @@ export async function runRegeneration(ctx: JobContext, connection: PoolClient, s
       const recipe = request.recipe.mode === "story" ? { ...request.recipe,
         segments: request.recipe.segments.map((segment, index) => index === 0 ? { ...segment, title: request.snapshot.title } : segment),
       } : request.recipe;
-      const info: RenderInfo = { version: request.version, recipe, snapshot: { ...request.snapshot, script: String(voice.transcript) } };
-      const config = { ...recipe, ...info.snapshot, source, voiceFile, output, poster, captionsOutput, captionsInput, sponsorAudio, watermark };
+      const info: RenderInfo = { version: request.version, captionTiming: "asr-word", recipe, snapshot: { ...request.snapshot, script: String(voice.transcript) } };
+      const config = { ...recipe, ...info.snapshot, source, voiceFile, output, poster, captionsOutput, captionsInput, requireWordTiming: true, sponsorAudio, watermark };
       const path = join(dir, "render.json");
       await writeFile(path, JSON.stringify(config));
       await ctx.update({ stage: "waiting for renderer", progress: 35 });

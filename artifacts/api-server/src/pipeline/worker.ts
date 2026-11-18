@@ -8,6 +8,7 @@ import { startPollLoop, type PollObserver } from "../lib/poll-loop";
 import { reserveOutputs, releaseOutputs, RenderBudgetPaused } from "../lib/render-budget";
 import { redactError, nextFailure, permanentMediaFailure } from "../lib/failure-policy";
 import { AIUsagePaused } from "../lib/ai-usage";
+import { AIRetryScheduled, AIRetriesExhausted } from "./ai-retry";
 
 export const GLOBAL_SOURCE_LIMIT = 5;
 const running = new Set<Promise<void>>();
@@ -41,8 +42,6 @@ export async function runSlot(slot: number, run = runAutopilot, onlyOwner: strin
         .then((rows) => { if (!rows.length) ctx.abort.abort(); }).catch(() => ctx.abort.abort());
     }, 10000);
     try {
-      const [unfinished] = await db.select().from(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, id), eq(aiCheckpointsTable.status, "started"))).limit(1);
-      if (unfinished) throw new UncertainCallError("An unfinished AI request may have been billed. Review and acknowledge before retrying; no new paid work was started.");
       await reserveOutputs(job!.ownerId, id, job!.originalClipId ? 1 : (job!.checkpoint.moments as unknown[] | undefined)?.length ?? 5, token);
       await jobContext.run(ctx, () => run(ctx, connection));
       await ctx.update({ status: "completed", progress: 100, stage: "ready", error: null, retryAt: null, failureKind: null });
@@ -54,16 +53,15 @@ export async function runSlot(slot: number, run = runAutopilot, onlyOwner: strin
       const retry = nextFailure(current?.failures ?? 0, new Date(), error instanceof AIRequestRejectedError ? error.notBefore : null);
       const stopped = error instanceof JobStoppedError || ctx.abort.signal.aborted;
       const status = current?.cancelRequested ? "cancelled"
-        : error instanceof UncertainCallError || pendingAI ? "uncertain"
         : stopped ? "queued" : error instanceof RenderBudgetPaused ? "budget_paused"
+        : error instanceof AIRetriesExhausted ? "failed"
+        : error instanceof AIRetryScheduled ? "retry"
         : error instanceof AIRequestRejectedError && error.status !== 429 || permanentMediaFailure(error) ? "failed" : retry.status;
-      const failureKind = status === "uncertain" || pendingAI ? "uncertain_ai" : error instanceof AIUsagePaused ? "ai_usage_cap" : status === "budget_paused" ? "daily_cap"
+      const failureKind = error instanceof AIRetryScheduled ? "ai_retry" : error instanceof AIUsagePaused ? "ai_usage_cap" : status === "budget_paused" ? "daily_cap"
         : error instanceof AIRequestRejectedError && error.status === 429 ? "rate_limited"
         : status === "failed" && retry.count < 2 ? "permanent" : status === "failed" ? "retry_exhausted" : "transient";
-      const message = redactError(status === "uncertain" && !(error instanceof UncertainCallError)
-        ? new UncertainCallError("An unfinished AI request may have been billed. Review and acknowledge before retrying; completed results are preserved.")
-        : error);
-      const retryAt = status === "budget_paused" ? (error as RenderBudgetPaused).resetAt : status === "retry" ? retry.retryAt
+      const message = redactError(error);
+      const retryAt = error instanceof AIRetryScheduled ? error.notBefore : status === "budget_paused" ? (error as RenderBudgetPaused).resetAt : status === "retry" ? retry.retryAt
         : error instanceof AIRequestRejectedError && error.status === 429 ? error.notBefore : null;
       const counted = !["cancelled", "uncertain", "queued", "budget_paused"].includes(status);
       const changed = await db.update(jobs).set({ status, failureKind, retryAt, failures: counted ? retry.count : current?.failures ?? 0,
@@ -86,10 +84,13 @@ export async function runSlot(slot: number, run = runAutopilot, onlyOwner: strin
 }
 /** Adopt queued historical projects without deleting/replacing any existing media. */
 export async function adoptLegacyJobs() {
+  // The owner approved automatic recovery of ambiguous AI attempts. Never touches social posts.
+  await db.execute(sql`UPDATE autopilot_jobs SET status='retry',retry_at=now(),failure_kind='ai_retry',
+    error='Resuming interrupted AI work automatically. Previous usage remains recorded.',updated_at=now()
+    WHERE status='uncertain' AND cancel_requested=false AND (lease_until IS NULL OR lease_until<now())`);
   await db.execute(sql`INSERT INTO autopilot_jobs(owner_id,project_id,request_key,input_hash,status,error)
     SELECT p.owner_id,p.id,'legacy:'||p.id,'legacy',
-      CASE WHEN p.status='processing' THEN 'uncertain' ELSE 'queued' END,
-      CASE WHEN p.status='processing' THEN 'Historical processing was interrupted without checkpoints. Review possible AI usage before explicitly retrying.' ELSE NULL END
+      'queued', NULL
     FROM projects p WHERE p.status IN ('queued','processing') AND p.demo=false
     AND NOT EXISTS (SELECT 1 FROM autopilot_jobs j WHERE j.project_id=p.id) ON CONFLICT DO NOTHING`);
 }

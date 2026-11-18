@@ -13,7 +13,7 @@ export function getCapabilities() {
   });
   cached = {
     media: hasTool("ffmpeg") && hasTool("ffprobe") && hasTool("yt-dlp"),
-    ai: Boolean(process.env.AI_INTEGRATIONS_OPENAI_BASE_URL && process.env.AI_INTEGRATIONS_OPENAI_API_KEY),
+    ai: Boolean(process.env.OPENAI_API_KEY?.trim() || (process.env.AI_INTEGRATIONS_OPENAI_BASE_URL && process.env.AI_INTEGRATIONS_OPENAI_API_KEY)),
     publishing: false,
     uploads: Boolean(process.env.PRIVATE_OBJECT_DIR && process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID),
   };

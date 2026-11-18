@@ -11,8 +11,11 @@ import { GetAutopilotUsageResponse } from "@workspace/api-zod";
 import { captureManagedUsage, setUsageLimit, usageReport, AIUsagePaused } from "../lib/ai-usage";
 import { managedMetrics, addMetrics, unknownMetrics } from "../lib/ai-usage-metrics";
 import { JobContext, UncertainCallError, AIRequestRejectedError, JobStoppedError } from "../pipeline/job-context";
-import { runSlot } from "../pipeline/worker";
+import { runSlot, adoptLegacyJobs } from "../pipeline/worker";
 import autopilotRouter from "../routes/autopilot";
+import { AIRetryScheduled, AIRetriesExhausted, attemptKey, requestKey, retryDate } from "../pipeline/ai-retry";
+import { aiUsageContext } from "../lib/ai-usage";
+import { transcribeWords, wordTranscript } from "../pipeline/word-transcription";
 
 // No provider calls, external writes, or live queue fixtures.
 const schema = `usage_${randomUUID().replaceAll("-", "")}`;
@@ -50,6 +53,91 @@ async function fixture(ownerId = owner(), language = "en") {
   return new JobContext(j!, j!.leaseToken!);
 }
 const recorded = async () => { await captureManagedUsage(response, "fixture-managed-model"); return { text: "saved" }; };
+
+test("automatic AI retries survive new worker contexts, stop after three repeats and preserve every receipt", async () => {
+  let ctx = await fixture();
+  const keys: string[] = [];
+  let attempts = 0;
+  await ctx.ai("saved-analysis", recorded);
+  for (let n = 1; n <= 4; n++) {
+    const failed = ctx.ai("voice:auto", async () => {
+      attempts++; keys.push(aiUsageContext.getStore()!.requestKey!);
+      throw new Error("synthetic connection timeout");
+    });
+    await assert.rejects(failed, n < 4 ? AIRetryScheduled : AIRetriesExhausted);
+    if (n < 4) {
+      await assert.rejects(ctx.ai("voice:auto", async () => assert.fail("backoff must block an early repeat")), AIRetryScheduled);
+      // Advance just the fixture's persisted eligibility, never wall-clock sleeps or real providers.
+      await ctx.save(attemptKey("voice:auto"), { attempt: n, retryAt: "2000-01-01T00:00:00.000Z" });
+      const [row] = await db.select().from(jobs).where(eq(jobs.id, ctx.job.id));
+      ctx = new JobContext(row!, ctx.token);
+    }
+  }
+  await assert.rejects(ctx.ai("voice:auto", async () => assert.fail("exhausted calls must not run")), AIRetriesExhausted);
+  await ctx.ai("saved-analysis", async () => assert.fail("completed stages must remain reusable"));
+  assert.equal(attempts, 4);
+  assert.equal(new Set(keys).size, 1);
+  const report = await usageReport(ctx.job.ownerId);
+  assert.equal(report.usedUnits, 5);
+  assert.equal(report.entries.filter(e => e.status === "uncertain").length, 4);
+});
+test("concurrent callers for the same AI checkpoint share one request", async () => {
+  const ctx = await fixture(); let calls = 0;
+  const fn = async () => { calls++; return recorded(); };
+  const results = await Promise.all([ctx.ai("same", fn), ctx.ai("same", fn)]);
+  assert.deepEqual(results[0], results[1]); assert.equal(calls, 1);
+});
+test("AI Retry-After is durable and workers do not wait for manual approval", async () => {
+  const ctx = await fixture();
+  await db.update(jobs).set({ status: "queued", leaseToken: null }).where(eq(jobs.id, ctx.job.id));
+  let calls = 0; const before = Date.now();
+  await runSlot(0, async c => { await c.ai("rate", async () => {
+    calls++; throw Object.assign(new Error("synthetic limit"), { status: 429, headers: new Headers({ "retry-after": "90" }) });
+  }); }, ctx.job.ownerId);
+  const [row] = await db.select().from(jobs).where(eq(jobs.id, ctx.job.id));
+  assert.equal(row!.status, "retry"); assert.equal(row!.failureKind, "ai_retry");
+  assert.ok(row!.retryAt!.getTime() >= before + 90000);
+  await runSlot(0, async () => { calls++; }, ctx.job.ownerId);
+  assert.equal(calls, 1);
+  assert.equal((await usageReport(ctx.job.ownerId)).usedUnits, 0);
+});
+test("a completed CPU transcription fallback stays reusable after a deliberate retry", async () => {
+  let ctx = await fixture(), remote = 0, local = 0;
+  const services = {
+    remote: async () => { remote++; throw Object.assign(new Error("unsupported fixture"), { status: 404 }); },
+    local: async () => { local++; return wordTranscript({ words: [{ word: "fixture", start: .123, end: 1.123 }] }, 2, "synthetic-local"); },
+  };
+  await transcribeWords("synthetic", 2, ctx, "asr", services);
+  const [row] = await db.select().from(jobs).where(eq(jobs.id, ctx.job.id));
+  const checkpoint = Object.fromEntries(Object.entries(row!.checkpoint).filter(([k]) => !k.startsWith("ai-attempt:")));
+  await db.update(jobs).set({ checkpoint }).where(eq(jobs.id, ctx.job.id));
+  ctx = new JobContext({ ...row!, checkpoint }, ctx.token);
+  const result = await transcribeWords("synthetic", 2, ctx, "asr", services);
+  assert.equal(result.words[0]!.start, .123);
+  assert.equal(remote, 1); assert.equal(local, 1);
+  assert.equal((await usageReport(ctx.job.ownerId)).entries.length, 2);
+});
+test("invalid timestamps from a successful API response fall back once without repeating the paid call", async () => {
+  const ctx = await fixture(); let remote = 0;
+  const result = await transcribeWords("synthetic", 2, ctx, "invalid-format", {
+    remote: async () => { remote++; await captureManagedUsage({ duration: 2 }, "whisper-1"); return wordTranscript({}, 2, "invalid"); },
+    local: async () => wordTranscript({ words: [{ word: "fixture", start: 0, end: 1 }] }, 2, "synthetic-local"),
+  });
+  assert.equal(remote, 1); assert.equal(result.provider, "synthetic-local");
+  const report = await usageReport(ctx.job.ownerId);
+  assert.equal(report.entries.find(e => e.model === "whisper-1")!.status, "done");
+  assert.equal(report.entries.find(e => e.model === "whisper-1")!.metrics.audioSeconds, 2);
+});
+test("historical AI approval holds automatically resume with no provider side effects in the fixture", async () => {
+  const ctx = await fixture();
+  await db.insert(calls).values({ jobId: ctx.job.id, callKey: "legacy", status: "started" });
+  await db.update(jobs).set({ status: "uncertain", leaseToken: null, leaseUntil: null }).where(eq(jobs.id, ctx.job.id));
+  await adoptLegacyJobs();
+  let invocations = 0;
+  await runSlot(0, async c => { await c.ai("legacy", async () => { invocations++; return { text: "synthetic recovery" }; }); }, ctx.job.ownerId);
+  const [row] = await db.select().from(jobs).where(eq(jobs.id, ctx.job.id));
+  assert.equal(row!.status, "completed"); assert.equal(invocations, 1);
+});
 
 test("normalizes chat, transcription tokens and seconds without inventing usage or summing subsets", () => {
   const chat = managedMetrics(response);
@@ -101,7 +189,7 @@ test("unreported and invalid responses remain explicit; metrics survive post-res
   await assert.rejects(ctx.ai("moment-plan", recorded), UncertainCallError);
   const report = await usageReport(ctx.job.ownerId);
   assert.equal(report.usedUnits, 2);
-  assert.equal(report.entries[0]!.status, "uncertain");
+  assert.equal(report.entries[0]!.status, "done");
   assert.equal(report.entries[0]!.metrics.totalTokens, 130);
   assert.equal(report.groups[1]!.unknown, 1);
   assert.equal(report.groups[1]!.metrics.totalTokens, null);
@@ -125,10 +213,11 @@ test("parallel admissions cannot exceed a cap, cap zero pauses, and saved result
 });
 test("definitive rejections retain a zero-unit receipt and deliberate retries get a new attempt", async () => {
   const ctx = await fixture();
-  await assert.rejects(ctx.ai("moment-plan", async () => { throw Object.assign(new Error("rejected"), { status: 429 }); }), AIRequestRejectedError);
+  await assert.rejects(ctx.ai("moment-plan", async () => { throw Object.assign(new Error("rejected"), { status: 429 }); }), AIRetryScheduled);
   let report = await usageReport(ctx.job.ownerId);
   assert.equal(report.usedUnits, 0);
   assert.equal(report.entries[0]!.status, "rejected");
+  await db.update(jobs).set({ checkpoint: {} }).where(eq(jobs.id, ctx.job.id)); // Explicit fresh retry, without waiting in the fixture.
   await ctx.ai("moment-plan", recorded);
   report = await usageReport(ctx.job.ownerId);
   assert.equal(report.usedUnits, 1);

@@ -68,7 +68,7 @@ async function fixture() {
   const [clip] = await db.insert(clips).values({ ...draft, projectId: p!.id, ownerId, mode: "commentary", duration: 2,
     creator: "Fixture", score: 70, hookScore: 70, visualScore: 70, commentaryScore: 70,
     objectPath: "/objects/old-video", videoUrl: "/api/storage/objects/old-video", voiceoverObjectPath: "/objects/old-voice", captionsObjectPath: "/objects/old-captions",
-    renderInfo: { version: 1, snapshot: draft, recipe: { source: { objectPath: "/objects/source" }, segments: [{ start: 0, end: 2, title: "Fixture" }], mode: "commentary" } },
+    renderInfo: { version: 1, captionTiming: "asr-word", snapshot: draft, recipe: { source: { objectPath: "/objects/source" }, segments: [{ start: 0, end: 2, title: "Fixture" }], mode: "commentary" } },
   }).returning();
   return clip!;
 }
@@ -88,6 +88,7 @@ async function start(clip: Awaited<ReturnType<typeof fixture>>) {
 }
 const bytes = new Map<string, Buffer>();
 let synthesized = 0;
+let spokenFixture = "Synthetic narration";
 const services = {
   download: async (path: string, destination: string, _owner: string) => {
     const name = path === "/objects/source" ? "source.mp4" : path === "/objects/old-voice" ? "voice.mp3" : path === "/objects/old-captions" ? "original.srt" : null;
@@ -97,7 +98,14 @@ const services = {
   persist: async (path: string, _owner: string, _type: string) => {
     const key = `/objects/${randomUUID()}`; bytes.set(key, await readFile(path)); return key;
   },
-  synthesize: async (script: string) => { synthesized++; return { bytes: await readFile(join(dir, "voice.mp3")), transcript: script }; },
+  synthesize: async (script: string) => { synthesized++; spokenFixture = script; return { bytes: await readFile(join(dir, "voice.mp3")), transcript: script }; },
+  align: async (_voice: string, _duration: number, folder: string) => {
+    const path = join(folder, "fixture-words.srt");
+    const words = spokenFixture.split(/\s+/);
+    const stamp = (n: number) => `00:00:0${Math.floor(n / 1000)},${String(n % 1000).padStart(3, "0")}`;
+    await writeFile(path, words.map((word, index) => `${index + 1}\n${stamp(Math.floor(100 + index * 1600 / words.length))} --> ${stamp(Math.floor(100 + (index + 1) * 1600 / words.length))}\n${word}`).join("\n\n") + "\n");
+    return path;
+  },
   render: async (path: string) => { await command(mediaPython, [mediaRenderer, "render", path], 900000); },
 };
 

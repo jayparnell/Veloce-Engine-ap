@@ -34,7 +34,8 @@ export async function buildExport(clips: Clip[], owner: string, storage = { owne
       language: clip.language, originalClipId: clip.originalClipId,
       demo: clip.demo,
       heuristicScore: clip.score, reviewRequired: true,
-      captionTiming: "Individual word timing estimated from the narration speech envelope; review before publishing.",
+      captionTiming: info?.captionTiming === "asr-word" ? "Word-level ASR timestamps from the fitted narration, preserved to milliseconds in SRT. Recognition and alignment require review."
+        : "Historical individual-word timing estimated from the narration speech envelope; regenerate to upgrade and review before publishing.",
       platforms: clip.platforms.map((platform) => ({
         platform,
         title: platform === "YouTube Shorts" ? copy.title.slice(0, 90) + " #Shorts" : copy.title,

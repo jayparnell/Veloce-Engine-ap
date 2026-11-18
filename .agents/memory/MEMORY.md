@@ -1,4 +1,4 @@
-- [AI billing choice](ai-billing-choice.md) — use Replit-hosted audio and AI on credits, not an external OpenAI API key.
+- [AI billing choice](ai-billing-choice.md) — prefer direct BYOK when configured; the user approved automatic ambiguous AI retries despite possible additional billing.
 - [Capability readiness](capability-readiness.md) — avoid synchronous tool launches in request-time capability checks.
 - [Storage SDK compatibility](storage-sdk-compatibility.md) — preserve sidecar auth and verify private reads/writes before upgrading storage dependencies.
 - [Preview session cookies](preview-session-cookies.md) — Preview may rewrite SameSite; verify app policy and persistence without logging cookie values.
@@ -6,6 +6,7 @@
 - [Build and service ownership](build-service-ownership.md) — post-merge builds can run before live services stop; retain worker listener ownership through draining.
 - [Queue test isolation](queue-test-isolation.md) — isolated schemas do not isolate PostgreSQL advisory locks; serialize suites sharing worker locks.
 - [Editor regeneration contract](editor-regeneration-contract.md) — Save stays metadata-only; explicit regeneration replaces media atomically, and exports use the rendered copy.
+- [Media runtime compatibility](media-runtime-compatibility.md) — verify the actual Haar detector and model files; OpenAI upload wrappers also receive local data-URL probes.
 - [Cleanup reservations](storage-cleanup-reservations.md) — reserve paths before deletion; never auto-release or replay uncertain operations, even when provider locks are no longer held.
 - [Unified posting safety](unified-posting-safety.md) — Late is now Zernio; use canonical hosts without redirects and bind the shared posting key to an explicit owner.
 - [YouTube watch admission](youtube-watch-policy.md) — preserve manual workflows; pending discovery must survive budget limits and bounded RSS windows.

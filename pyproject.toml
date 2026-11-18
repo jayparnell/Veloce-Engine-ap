@@ -5,7 +5,7 @@ description = "Local transcription, visual analysis and media rendering dependen
 requires-python = ">=3.13"
 dependencies = [
     "faster-whisper>=1.2.1",
-    "opencv-python-headless>=5.0.0.93",
+    "opencv-python-headless>=4.13,<5",
 ]
 
 [project.scripts]

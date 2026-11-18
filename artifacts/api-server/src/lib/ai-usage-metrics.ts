@@ -21,7 +21,7 @@ export function managedMetrics(response: unknown): AIUsageMetrics {
     totalTokens: nonnegative(u.total_tokens),
     inputAudioTokens: nonnegative(input.audio_tokens),
     outputAudioTokens: nonnegative(output.audio_tokens),
-    audioSeconds: nonnegative(u.seconds, false),
+    audioSeconds: nonnegative(u.seconds ?? record(response).duration, false),
   };
 }
 export function hasMetrics(metrics: AIUsageMetrics) {
@@ -37,5 +37,5 @@ export function addMetrics(a: AIUsageMetrics, b: AIUsageMetrics): AIUsageMetrics
 }
 export function usageCategory(language: string, key: string) {
   return language === "es" || language === "pt" ? language
-    : key.startsWith("voice:") || key === "editor-voice" ? "narration" : "source";
+    : key.startsWith("voice:") || key.startsWith("align:") || key === "editor-voice" ? "narration" : "source";
 }

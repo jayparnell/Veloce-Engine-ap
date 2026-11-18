@@ -123,21 +123,19 @@ router.post("/autopilot/jobs/:id/action", async (req, res): Promise<void> => {
     } else {
       if (!["failed", "cancelled", "uncertain"].includes(job.status) || (job.leaseUntil && job.leaseUntil > new Date())) return { code: 409, message: "Wait for this worker to stop before retrying." };
        if (job.retryAt && job.retryAt > new Date()) return { code: 409, message: `Provider restrictions prevent a repeat before ${job.retryAt.toISOString()}.` };
-      if (job.status === "uncertain" && input.data.action !== "acknowledge-uncertain") return { code: 409, message: "Acknowledge possible previous AI usage before repeating unfinished calls." };
-       const [unfinished] = await tx.select().from(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, job.id), eq(aiCheckpointsTable.status, "started"))).limit(1);
-       if (unfinished && input.data.action !== "acknowledge-uncertain") return { code: 409, message: "A cancelled or failed job still has an uncertain AI request. Acknowledge possible usage before repeating it." };
       const usage = await tx.execute(autopilotUsage(req.workspaceId));
       if (job.status !== "uncertain" && Number(usage.rows[0]?.active) >= 10) return { code: 429, message: "Ten jobs are already active. Wait before reactivating another source." };
-      if (input.data.action === "acknowledge-uncertain") {
+      {
         // Preserve the earlier potentially charged attempt when authorizing a new one.
         const pending = await tx.select().from(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, job.id), eq(aiCheckpointsTable.status, "started")));
         const ids = pending.flatMap((c) => c.usageId == null ? [] : [c.usageId]);
         if (ids.length) await tx.update(aiUsageTable).set({ status: "uncertain" }).where(and(eq(aiUsageTable.ownerId, req.workspaceId), inArray(aiUsageTable.id, ids)));
         await tx.delete(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, job.id), eq(aiCheckpointsTable.status, "started")));
       }
-       await tx.update(jobs).set({ status: "queued", failures: 0, error: null, retryAt: null, failureKind: null, cancelRequested: false, leaseToken: null, leaseUntil: null, updatedAt: new Date() }).where(eq(jobs.id, job.id));
+       const checkpoint = Object.fromEntries(Object.entries(job.checkpoint).filter(([key]) => !key.startsWith("ai-attempt:")));
+       await tx.update(jobs).set({ checkpoint, status: "queued", failures: 0, error: null, retryAt: null, failureKind: null, cancelRequested: false, leaseToken: null, leaseUntil: null, updatedAt: new Date() }).where(eq(jobs.id, job.id));
     }
-    return { code: 200, message: input.data.action === "cancel" ? "Cancellation requested. Completed clips are preserved." : "Job queued with saved results. Unfinished acknowledged AI calls may incur new usage." };
+    return { code: 200, message: input.data.action === "cancel" ? "Cancellation requested. Completed clips are preserved." : "Job queued with saved results and automatic AI retries. Repeated ambiguous calls may incur additional provider charges." };
   });
   res.status(result.code).json(result.code === 200 ? { message: result.message } : { error: result.message });
 });
