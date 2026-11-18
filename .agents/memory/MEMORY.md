@@ -1,4 +1,4 @@
-- [AI billing choice](ai-billing-choice.md) — prefer direct BYOK when configured; the user approved automatic ambiguous AI retries despite possible additional billing.
+- [AI billing choice](ai-billing-choice.md) — direct OpenAI only, two fixed-delay retries, raw provider diagnostics; no AI billing holds or admission locks.
 - [Capability readiness](capability-readiness.md) — avoid synchronous tool launches in request-time capability checks.
 - [Storage SDK compatibility](storage-sdk-compatibility.md) — preserve sidecar auth and verify private reads/writes before upgrading storage dependencies.
 - [Preview session cookies](preview-session-cookies.md) — Preview may rewrite SameSite; verify app policy and persistence without logging cookie values.

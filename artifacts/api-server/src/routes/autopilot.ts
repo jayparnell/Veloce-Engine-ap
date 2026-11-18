@@ -11,8 +11,9 @@ import { autopilotUsage } from "../lib/autopilotQuota";
 import { budgetTransaction, budgetStatus, setRenderCap, RenderCapConflict } from "../lib/render-budget";
 import { GetRenderBudgetResponse, UpdateRenderBudgetBody, UpdateRenderBudgetResponse } from "@workspace/api-zod";
 import { redactError } from "../lib/failure-policy";
+import { OpenAIRequestError } from "../lib/openai-error";
 import { GetAutopilotUsageQueryParams, GetAutopilotUsageResponse, UpdateAIUsageLimitBody, UpdateAIUsageLimitResponse } from "@workspace/api-zod";
-import { usageReport, setUsageLimit } from "../lib/ai-usage";
+import { usageReport } from "../lib/ai-usage";
 import { isUnifiedProvider } from "../publishing/unifiedPublisher";
 import { unifiedAuthorized } from "../publishing/unified-settings";
 import { DuplicateYoutubeSource, recordYoutubeSubmission } from "../lib/youtube-source-identity";
@@ -33,7 +34,7 @@ router.get("/autopilot/usage", async (req, res): Promise<void> => {
 router.patch("/autopilot/usage", async (req, res): Promise<void> => {
   const input = UpdateAIUsageLimitBody.safeParse(req.body);
   if (!input.success) { res.status(400).json({ error: "Use a whole request-unit limit from 0 to 10000, or null for no additional limit." }); return; }
-  res.json(UpdateAIUsageLimitResponse.parse(await setUsageLimit(req.workspaceId, input.data.dailyRequestUnitLimit)));
+  res.status(410).json({ error: "Legacy AI billing controls have been removed. AI requests now go directly to OpenAI." });
 });
 router.get("/autopilot/render-budget", async (req, res): Promise<void> => {
   res.json(GetRenderBudgetResponse.parse(await budgetTransaction(req.workspaceId, (c) => budgetStatus(c, req.workspaceId))));
@@ -100,7 +101,7 @@ router.get("/autopilot/swarm", async (req, res): Promise<void> => {
     const done = ready.filter((c) => c.jobId === job.id);
     const moments = job.checkpoint.moments as unknown[] | undefined;
     const count = job.originalClipId ? 1 : moments?.length ?? project.clipCount;
-     return { ...job, error: job.error ? redactError(new Error(job.error)) : null, retryAt: job.retryAt?.toISOString() ?? null, sourceUrl: project.sourceUrl, title: job.checkpoint.regeneration ? `Editor regeneration · clip #${job.originalClipId}` : project.title, createdAt: job.createdAt.toISOString(),
+     return { ...job, error: job.error ? redactError(job.failureKind === "openai_error" ? new OpenAIRequestError(new Error(job.error)) : new Error(job.error)) : null, retryAt: job.retryAt?.toISOString() ?? null, sourceUrl: project.sourceUrl, title: job.checkpoint.regeneration ? `Editor regeneration · clip #${job.originalClipId}` : project.title, createdAt: job.createdAt.toISOString(),
       clips: Array.from({ length: count }, (_, index) => {
         const clip = job.checkpoint.regeneration
           ? ready.find((c) => c.id === job.originalClipId && c.regenerationJobId === job.id && c.renderInfo?.version === (job.checkpoint.regeneration as { version: number }).version)
@@ -125,17 +126,10 @@ router.post("/autopilot/jobs/:id/action", async (req, res): Promise<void> => {
        if (job.retryAt && job.retryAt > new Date()) return { code: 409, message: `Provider restrictions prevent a repeat before ${job.retryAt.toISOString()}.` };
       const usage = await tx.execute(autopilotUsage(req.workspaceId));
       if (job.status !== "uncertain" && Number(usage.rows[0]?.active) >= 10) return { code: 429, message: "Ten jobs are already active. Wait before reactivating another source." };
-      {
-        // Preserve the earlier potentially charged attempt when authorizing a new one.
-        const pending = await tx.select().from(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, job.id), eq(aiCheckpointsTable.status, "started")));
-        const ids = pending.flatMap((c) => c.usageId == null ? [] : [c.usageId]);
-        if (ids.length) await tx.update(aiUsageTable).set({ status: "uncertain" }).where(and(eq(aiUsageTable.ownerId, req.workspaceId), inArray(aiUsageTable.id, ids)));
-        await tx.delete(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, job.id), eq(aiCheckpointsTable.status, "started")));
-      }
        const checkpoint = Object.fromEntries(Object.entries(job.checkpoint).filter(([key]) => !key.startsWith("ai-attempt:")));
        await tx.update(jobs).set({ checkpoint, status: "queued", failures: 0, error: null, retryAt: null, failureKind: null, cancelRequested: false, leaseToken: null, leaseUntil: null, updatedAt: new Date() }).where(eq(jobs.id, job.id));
     }
-    return { code: 200, message: input.data.action === "cancel" ? "Cancellation requested. Completed clips are preserved." : "Job queued with saved results and automatic AI retries. Repeated ambiguous calls may incur additional provider charges." };
+    return { code: 200, message: input.data.action === "cancel" ? "Cancellation requested. Completed clips are preserved." : "Job queued. OpenAI calls retry twice, three seconds apart." };
   });
   res.status(result.code).json(result.code === 200 ? { message: result.message } : { error: result.message });
 });

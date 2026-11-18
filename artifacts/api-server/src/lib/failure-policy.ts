@@ -1,4 +1,5 @@
-/** Shared by persisted errors and logs. Never log provider payloads, tokens or signed URLs. */
+import { OpenAIRequestError } from "./openai-error";
+/** Provider diagnostics are preserved verbatim except credential material. */
 export function redactError(error: unknown, env: { PROXY_URL?: string } = process.env) {
   let message = error instanceof Error ? error.message : "Unknown failure";
   // A bounded stderr buffer can start midway through a credential-bearing URL.
@@ -11,6 +12,14 @@ export function redactError(error: unknown, env: { PROXY_URL?: string } = proces
         if (value) message = message.split(value).join("[redacted]");
       }
     } catch { /* Invalid proxy input is rejected without echoing its value. */ }
+  }
+  if (error instanceof OpenAIRequestError) {
+    const key = process.env.OPENAI_API_KEY;
+    if (key) message = message.split(key).join("[redacted key]");
+    return message
+      .replace(/(https?:\/\/)[^/\s@]+@/gi, "$1[redacted]@")
+      .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, "$1 [redacted]")
+      .replace(/\bsk-[A-Za-z0-9_.*-]+/g, "[redacted key]");
   }
   return message
     .replace(/\x1b\[[0-9;]*m/g, "")

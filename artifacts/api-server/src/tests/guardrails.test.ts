@@ -10,7 +10,8 @@ import { eq } from "drizzle-orm";
 import { renderDay, reserveOutputs, commitOutput, budgetTransaction, budgetStatus, setRenderCap, RenderBudgetPaused, RenderCapConflict, releaseOutputs } from "../lib/render-budget";
 import { redactError, nextFailure } from "../lib/failure-policy";
 import { runSlot } from "../pipeline/worker";
-import { JobContext, AIRequestRejectedError } from "../pipeline/job-context";
+import { JobContext } from "../pipeline/job-context";
+import { OpenAIRequestError } from "../lib/openai-error";
 import { publisherTick, recordPublishFailure } from "../publishing/publisher";
 import { ProviderError, readJson } from "../publishing/providers";
 import { ReconciliationRequired, ReviewRequired } from "../publishing/adapters";
@@ -160,13 +161,14 @@ test("unfinished AI requests recover automatically; permanent source access fail
   assert.equal((await getJob(blocked.id)).status, "failed");
   assert.equal((await getJob(blocked.id)).failureKind, "permanent");
 });
-test("AI definite rate rejection honors Retry-After without treating it as uncertain billing", async () => {
+test("exhausted AI quota errors remain raw and do not trigger another worker retry", async () => {
   const o = owner(), j = await makeJob(o, false), until = new Date(Date.now() + 7200000);
-  await runSlot(0, async () => { throw new AIRequestRejectedError("AI provider rejected request (HTTP 429).", 429, until); }, o);
+  await runSlot(0, async () => { throw new OpenAIRequestError(Object.assign(new Error("Insufficient quota"), { status: 429 })); }, o);
   const saved = await getJob(j.id);
-  assert.equal(saved.failureKind, "rate_limited");
-  assert.equal(saved.retryAt!.toISOString(), until.toISOString());
-  assert.equal(saved.status, "retry");
+  assert.equal(saved.failureKind, "openai_error");
+  assert.equal(saved.retryAt, null);
+  assert.equal(saved.status, "failed");
+  assert.equal(saved.error, "429 Insufficient quota");
 });
 async function makePublish(o: string) {
   const j = await makeJob(o);
@@ -293,7 +295,7 @@ test("budget API persists owner settings, rejects invalid/lower caps and protect
     await db.update(jobs).set({ status: "cancelled", cancelRequested: true }).where(eq(jobs.id, uncertain.id));
     await db.insert(ai).values({ jobId: uncertain.id, callKey: "ambiguous", status: "started" });
     assert.equal((await request(`/autopilot/jobs/${uncertain.id}/action`, "POST", { action: "retry" })).status, 200);
-    assert.equal((await db.select().from(ai).where(eq(ai.jobId, uncertain.id))).length, 0);
+    assert.equal((await db.select().from(ai).where(eq(ai.jobId, uncertain.id))).length, 1, "historical billing records are inert and retained, not consulted or rewritten");
     await db.update(jobs).set({ status: "failed", retryAt: new Date(Date.now() + 86400000) }).where(eq(jobs.id, uncertain.id));
     assert.equal((await request(`/autopilot/jobs/${uncertain.id}/action`, "POST", { action: "retry" })).status, 409);
     assert.equal((await request(`/autopilot/jobs/${uncertain.id}/action`, "POST", { action: "retry" }, other)).status, 404);

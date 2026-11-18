@@ -1,20 +1,19 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import {
-  useGetAutopilotUsage, getGetAutopilotUsageQueryKey, useUpdateAIUsageLimit,
+  useGetAutopilotUsage, getGetAutopilotUsageQueryKey,
   type AIUsageMetrics, type AIUsageEntry, type AIUsageGroup,
 } from "@workspace/api-client-react";
 import { ArrowUpRight, ChevronLeft, ChevronRight, Gauge } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Pill, Sk, btn, errMsg, field } from "./kit";
+import { Pill, Sk, btn, errMsg } from "./kit";
 
 const CAT_LABEL: Record<string, string> = { source: "Source analysis", narration: "Narration", es: "Dub ES", pt: "Dub PT" };
 const CAT_ORDER = ["source", "narration", "es", "pt"];
 const STATUS: Record<string, { tone: "emerald" | "amber" | "red" | "neutral" | "sky"; label: string; hint: string }> = {
-  started: { tone: "sky", label: "started", hint: "In flight or interrupted. Not free; outcome not yet confirmed." },
+  started: { tone: "neutral", label: "historical", hint: "Legacy reporting entry; never blocks processing." },
   done: { tone: "emerald", label: "done", hint: "Completed and recorded." },
-  uncertain: { tone: "amber", label: "uncertain", hint: "Provider may have completed and billed this call." },
+  uncertain: { tone: "neutral", label: "historical", hint: "Legacy reporting entry; never blocks processing." },
+  failed: { tone: "red", label: "failed", hint: "Call failed. See the job card for the OpenAI diagnostic." },
   rejected: { tone: "neutral", label: "rejected", hint: "Provider definitively rejected the request. 0 internal request units; this is not a credit statement." },
 };
 
@@ -51,8 +50,6 @@ function Meter({ label, used, limit, testId }: { label: string; used: number; li
 
 
 export function AIUsagePanel() {
-  const qc = useQueryClient();
-  const { toast } = useToast();
   const [cursors, setCursors] = useState<number[]>([]);
   const before = cursors[cursors.length - 1];
   const params = before ? { before } : undefined;
@@ -60,26 +57,12 @@ export function AIUsagePanel() {
     queryKey: getGetAutopilotUsageQueryKey(params), refetchInterval: 5000, refetchIntervalInBackground: false, refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   } });
-  const [draft, setDraft] = useState<string | null>(null);
-  const save = useUpdateAIUsageLimit({ mutation: {
-    onSuccess: (r) => {
-      setDraft(null);
-      qc.invalidateQueries({ queryKey: [getGetAutopilotUsageQueryKey()[0]] });
-      toast({ title: "AI request-unit cap saved", description: r.dailyRequestUnitLimit == null ? "No additional cap. Job safety quotas still apply." : r.dailyRequestUnitLimit === 0 ? "New AI calls are paused." : `${r.dailyRequestUnitLimit} units per rolling 24h.` });
-    },
-    onError: (e) => toast({ title: "Cap was not changed", description: errMsg(e), variant: "destructive" }),
-  } });
 
   const d = usage.data;
   if (!d) return usage.isError
     ? <div className="panel px-4 py-3 my-4 text-[12px] text-zinc-400" data-testid="ai-usage-error">AI usage unavailable: {errMsg(usage.error)} <button className="underline" onClick={() => usage.refetch()} data-testid="button-retry-ai-usage">Try again</button></div>
     : <Sk className="h-48 my-4" />;
 
-  const serverCap = d.dailyRequestUnitLimit == null ? "" : String(d.dailyRequestUnitLimit);
-  const cap = draft ?? serverCap;
-  const valid = cap.trim() === "" || (/^\d+$/.test(cap.trim()) && Number(cap) <= 10000);
-  const nextVal = cap.trim() === "" ? null : Number(cap);
-  const unchanged = nextVal === d.dailyRequestUnitLimit;
   const groups = CAT_ORDER.map((c) => d.groups.find((g) => g.category === c)).filter(Boolean) as AIUsageGroup[];
 
   const bySource = new Map<number, { title: string; projectId: number; rows: AIUsageEntry[] }>();
@@ -94,7 +77,7 @@ export function AIUsagePanel() {
         <Gauge className="w-3.5 h-3.5 text-emerald-400" />
         <h2 className="text-[13.5px] font-semibold">AI usage</h2>
         <Pill tone="neutral">owner only</Pill>
-        <span className="mono text-[10.5px] text-zinc-500">rolling 24h + unresolved in-flight</span>
+        <span className="mono text-[10.5px] text-zinc-500">passive reporting · rolling 24h</span>
         {usage.isFetching && <span className="mono text-[10.5px] text-zinc-600 ml-auto">syncing</span>}
       </div>
 
@@ -107,16 +90,6 @@ export function AIUsagePanel() {
         </p>
       </div>
 
-      <div className="px-4 py-3 border-b border-white/[0.05] flex flex-wrap items-center gap-2">
-        <label htmlFor="ai-unit-cap" className="font-medium">Daily request-unit cap</label>
-        <input id="ai-unit-cap" inputMode="numeric" placeholder="none" value={cap} onChange={(e) => setDraft(e.target.value)}
-          className={cn(field, "w-24 h-8", !valid && "border-amber-500/50")} data-testid="input-ai-unit-cap" />
-        <button className={btn.ghost} disabled={save.isPending || !valid || unchanged}
-          onClick={() => save.mutate({ data: { dailyRequestUnitLimit: nextVal } })} data-testid="button-save-ai-cap">{save.isPending ? "Saving..." : "Save cap"}</button>
-        {draft != null && !unchanged && <button className="text-[11.5px] text-zinc-500 underline" onClick={() => setDraft(null)} data-testid="button-reset-ai-cap">Discard</button>}
-        {d.dailyRequestUnitLimit === 0 && <Pill tone="amber">new AI calls paused</Pill>}
-        <span className="basis-full text-[11px] text-zinc-500">{valid ? "Whole number 0 to 10000. Blank removes the additional cap; 0 pauses new AI calls." : "Enter a whole number 0 to 10000, or leave blank."}</span>
-      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 border-b border-white/[0.05]">
         {groups.map((g) => (
@@ -126,7 +99,6 @@ export function AIUsagePanel() {
             <div className="mt-1"><Metrics m={g.metrics} compact /></div>
             <div className="mt-1 flex flex-wrap gap-1">
               {g.unknown > 0 && <Pill tone="neutral">{g.unknown} unreported</Pill>}
-              {g.uncertain > 0 && <Pill tone="amber">{g.uncertain} uncertain</Pill>}
             </div>
             {g.unknown > 0 && <p className="text-[10.5px] text-zinc-500 mt-1">Known subtotal only; full usage is unknown.</p>}
           </div>

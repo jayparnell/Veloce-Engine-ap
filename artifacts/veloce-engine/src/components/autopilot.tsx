@@ -46,8 +46,7 @@ export function RenderBudgetSettings() {
 export function FailureDetails({ status, kind, count = 0, retryAt }: { status: string; kind?: string | null; count?: number; retryAt?: string | null }) {
   if (!kind && !count && !retryAt) return null;
   const actions: Record<string, string> = {
-    uncertain_ai: "Interrupted AI work recovers automatically. Previous usage remains recorded; saved results are reused.",
-    ai_retry: "AI retries automatically up to three times with backoff. Repeated ambiguous calls may incur additional provider charges.",
+    openai_error: "OpenAI's final status and message appear below. Calls retry at most twice, three seconds apart.",
     uncertain_publish: "Reconcile the saved provider identifiers and recent posts before any repeat. No blind repost.",
     consent_required: "Review this video and the provider consent requirements.",
     access_blocked: "Reconnect or resolve account access before resuming.",
@@ -112,5 +111,3 @@ export function PackButton({ onClick, pending, disabled, className, testId }: { 
 export function DubButton({ onClick, pending, disabled, className, testId, children }: { onClick: () => void; pending: boolean; disabled?: boolean; className?: string; testId: string; children?: ReactNode }) {
   return <button className={cn(btn.ghost, className)} disabled={pending || disabled} onClick={onClick} data-testid={testId}><Languages className="w-3.5 h-3.5" />{pending ? "Queuing..." : children ?? DUB_LABEL}</button>;
 }
-
-export const isUncertain = (s: string) => /uncertain/i.test(s);

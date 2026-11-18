@@ -437,7 +437,7 @@ export const GetAutopilotUsageResponse = zod.object({
   "language": zod.string(),
   "category": zod.enum(['source', 'narration', 'es', 'pt']),
   "callKey": zod.string(),
-  "status": zod.enum(['started', 'done', 'uncertain', 'rejected']),
+  "status": zod.enum(['started', 'done', 'uncertain', 'rejected', 'failed']),
   "units": zod.number().int(),
   "model": zod.string().nullable(),
   "metrics": zod.object({
@@ -455,6 +455,9 @@ export const GetAutopilotUsageResponse = zod.object({
 })
 
 
+/**
+ * @deprecated
+ */
 export const updateAIUsageLimitBodyDailyRequestUnitLimitMin = 0;
 export const updateAIUsageLimitBodyDailyRequestUnitLimitMax = 10000;
 
@@ -496,7 +499,7 @@ export const UpdateAIUsageLimitResponse = zod.object({
   "language": zod.string(),
   "category": zod.enum(['source', 'narration', 'es', 'pt']),
   "callKey": zod.string(),
-  "status": zod.enum(['started', 'done', 'uncertain', 'rejected']),
+  "status": zod.enum(['started', 'done', 'uncertain', 'rejected', 'failed']),
   "units": zod.number().int(),
   "model": zod.string().nullable(),
   "metrics": zod.object({
@@ -669,7 +672,7 @@ export const ControlAutopilotJobParams = zod.object({
 })
 
 export const ControlAutopilotJobBody = zod.object({
-  "action": zod.enum(['cancel', 'retry', 'acknowledge-uncertain'])
+  "action": zod.enum(['cancel', 'retry'])
 })
 
 export const ControlAutopilotJobResponse = zod.object({

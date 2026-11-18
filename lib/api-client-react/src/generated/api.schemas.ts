@@ -203,6 +203,7 @@ export const AIUsageEntryStatus = {
   done: 'done',
   uncertain: 'uncertain',
   rejected: 'rejected',
+  failed: 'failed',
 } as const;
 
 export interface AIUsageEntry {
@@ -328,7 +329,6 @@ export type JobActionAction = typeof JobActionAction[keyof typeof JobActionActio
 export const JobActionAction = {
   cancel: 'cancel',
   retry: 'retry',
-  'acknowledge-uncertain': 'acknowledge-uncertain',
 } as const;
 
 export interface JobAction {

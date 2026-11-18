@@ -12,7 +12,7 @@ A content-production studio for turning authorized VODs into commentary-led vert
 - `pnpm --filter @workspace/db run push` — development database schema
 - `pnpm --filter @workspace/db run migrate:autopilot` — repeatable additive Autopilot migration; see `docs/autopilot-verification.md`
 - Python dependencies are declared in `pyproject.toml` and `uv.lock`, installed by the managed Python toolchain into `.pythonlibs`.
-- System tools: FFmpeg, ffprobe, yt-dlp. Production OpenAI calls use the direct key when configured, otherwise managed AI. Word transcription uses Whisper; a bounded local CPU fallback downloads its model only when needed. See `docs/ai-rendering-upgrade.md`.
+- System tools: FFmpeg, ffprobe, yt-dlp. Production AI uses `OPENAI_API_KEY` directly against OpenAI, with no managed fallback or billing holds. Whisper uploads are mono 64kbps MP3, checked below 24MB before sending. See `docs/ai-rendering-upgrade.md`.
 
 ## Product boundaries
 
@@ -49,10 +49,10 @@ A content-production studio for turning authorized VODs into commentary-led vert
 ## Operational constraints
 
 - All domain queries and mutations are scoped to the current workspace owner; uploaded media remains private.
-- The dedicated worker, not the API process, claims durable leases. Five live source/dub slots, one renderer and one local CPU transcriber are PostgreSQL-lock bounded across processes. Completed AI/assets are reused. The owner approved up to three automatic AI retries, including ambiguous timeouts despite possible additional charges; no uncertain-AI approval pause remains.
+- The dedicated worker, not the API process, claims durable leases. Five live source/dub slots, one renderer and one local CPU transcriber are PostgreSQL-lock bounded across processes. Completed AI/assets are reused. AI requests retry twice with a fixed three-second delay; final provider status/messages appear on job cards, with credentials redacted.
 - The publisher checks every 60 seconds only while its service is running. Continuous scheduling needs a continuously running host; development sleep or autoscale-to-zero is not scheduling uptime. No production deployment or real posting was performed in verification.
 - The command center polls persisted private job/clip progress; authentication changes clear owner-scoped query caches. Existing PostgreSQL secure sessions/trust-proxy configuration remain intact.
 - Daily Render Cap defaults to 15 logical clip outputs per owner, including ES/PT variants. Sources reserve up to five outputs before paid work and shrink reservations to the saved plan. Reset is midnight EST, fixed UTC-05:00 year-round; unfinished reservations carry over and completed receipts survive media deletion. This is not an exact AI-credit or monetary cap. Existing 10-active / 20-rolling-daily job quotas remain separate.
-- Non-AI media/publishing failures retain one automatic retry at least 60 seconds later (or later Retry-After), then fail terminally. AI checkpoints allow an initial attempt plus three automatic retries at 2/4/8-second exponential backoff or longer provider cooldowns. Every attempt remains recorded and successful results are reused; stable request keys do not guarantee provider-side billing deduplication. Ambiguous social-post writes still require reconciliation, and posting consent holds are unchanged.
+- Non-AI media/publishing failures retain one automatic retry at least 60 seconds later (or later Retry-After), then fail terminally. AI billing admissions, checkpoint locks, uncertain states and unit-cap enforcement are removed; passive reporting never gates requests. Exhausted OpenAI calls fail without another worker retry. Ambiguous social-post writes still require reconciliation, and posting consent holds are unchanged.
 - Measurements, fixture limitations, provider documentation and test commands are in `docs/autopilot-verification.md`. Targets for acceptance/analysis latency, framing and estimated caption timing are not provider/network guarantees.
 - Use workflow-provided `PORT`/`BASE_PATH`; do not run duplicate servers.

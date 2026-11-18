@@ -14,4 +14,5 @@ export const AIUsageEntryStatus = {
   done: 'done',
   uncertain: 'uncertain',
   rejected: 'rejected',
+  failed: 'failed',
 } as const;

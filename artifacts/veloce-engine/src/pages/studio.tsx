@@ -14,7 +14,7 @@ import { useFileUpload } from "@/hooks/use-file-upload";
 import { cn } from "@/lib/utils";
 import { PageHeader, Pill, Sk, ErrorState, EmptyState, isActiveStatus, statusTone, errMsg } from "@/components/kit";
 import { AIUsagePanel } from "@/components/ai-usage";
-import { usePack, useDub, PackButton, DubButton, isUncertain, RenderBudgetSettings, FailureDetails } from "@/components/autopilot";
+import { usePack, useDub, PackButton, DubButton, RenderBudgetSettings, FailureDetails } from "@/components/autopilot";
 
 const MAX_SOURCES = 5;
 const newKey = () => (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}-launch`).replace(/[^a-zA-Z0-9-]/g, "");
@@ -59,7 +59,6 @@ function ClipTile({ c, jobId, pack, dub }: { c: SwarmClip; jobId: number; pack: 
 function JobCard({ j, onAction, pack, dub }: { j: SwarmJob; onAction: (a: JobActionAction) => void; pack: ReturnType<typeof usePack>; dub: ReturnType<typeof useDub> }) {
   const live = jobLive(j);
   const readyIds = j.clips.filter((c) => c.clip?.videoUrl && /ready|complete|done/i.test(c.status) && !c.clip.originalClipId).map((c) => c.clip!.id);
-  const uncertain = isUncertain(j.status) || j.failureKind === "uncertain_ai";
   return (
     <article className="panel overflow-hidden rise" data-testid={`card-job-${j.id}`}>
       <div className="px-4 pt-3.5 pb-3 border-b border-white/[0.05]">
@@ -67,7 +66,7 @@ function JobCard({ j, onAction, pack, dub }: { j: SwarmJob; onAction: (a: JobAct
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="mono text-[11px] text-zinc-500">JOB {j.id}</span>
-              <Pill tone={uncertain ? "amber" : statusTone(j.status)} dot={live}>{j.status}</Pill>
+              <Pill tone={statusTone(j.status)} dot={live}>{j.status}</Pill>
               <Pill tone="neutral">{j.language.toUpperCase()}</Pill>
             </div>
             <div className="text-[13.5px] font-medium mt-1 truncate" data-testid={`text-job-title-${j.id}`}>{j.title}</div>
@@ -87,7 +86,6 @@ function JobCard({ j, onAction, pack, dub }: { j: SwarmJob; onAction: (a: JobAct
         <div className="flex flex-wrap gap-1.5 mt-3">
           {(live || ["retry", "budget_paused", "uncertain"].includes(j.status)) && <button className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-white/[0.08] text-[12px] hover:bg-white/[0.05]" onClick={() => onAction("cancel")} data-testid={`button-cancel-${j.id}`}><Ban className="w-3.5 h-3.5" />Cancel</button>}
           {!live && (isFailed(j.status) || isCancelled(j.status)) && <button className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-white/[0.08] text-[12px] hover:bg-white/[0.05]" onClick={() => onAction("retry")} data-testid={`button-retry-${j.id}`}><RotateCw className="w-3.5 h-3.5" />Retry</button>}
-          {uncertain && <span className="text-[12px] text-amber-300">Automatic AI recovery pending</span>}
           {readyIds.length > 1 && <DubButton className="h-8" pending={dub.pending} onClick={() => dub.start(readyIds)} testId={`button-dub-batch-${j.id}`}>Clone & Dub (ES / PT) all {readyIds.length}</DubButton>}
           {readyIds.length > 0 && <Link href="/vault" className="inline-flex items-center gap-1 h-8 px-2 text-[12px] text-emerald-400 hover:text-emerald-300">Vault <ArrowUpRight className="w-3 h-3" /></Link>}
         </div>
@@ -104,7 +102,6 @@ function JobCard({ j, onAction, pack, dub }: { j: SwarmJob; onAction: (a: JobAct
 const CONFIRM: Record<JobActionAction, { title: string; body: string; cta: string }> = {
   cancel: { title: "Cancel this source?", body: "Processing stops at the next safe point. Compute or AI usage already started may still be billed, and the exact amount can be uncertain until the provider settles it.", cta: "I understand, cancel" },
   retry: { title: "Retry this source?", body: "A new attempt re-runs the failed stages. The previous attempt may already have incurred usage that cannot be confirmed yet, and the retry adds its own usage.", cta: "I understand, retry" },
-  "acknowledge-uncertain": { title: "Retry this source?", body: "Saved successful results are reused. AI calls retry automatically up to three times, including ambiguous timeouts; earlier usage remains recorded and retries can incur additional charges.", cta: "Retry source" },
 };
 
 export default function Studio() {

@@ -37,7 +37,7 @@ try {
   if (resumeJob) {
     const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, resumeJob.projectId));
     objectPath = project!.sourceUrl;
-    if (["failed", "uncertain", "cancelled"].includes(resumeJob.status)) await api(`/autopilot/jobs/${resumeJob.id}/action`, { action: resumeJob.status === "uncertain" ? "acknowledge-uncertain" : "retry" });
+    if (["failed", "cancelled"].includes(resumeJob.status)) await api(`/autopilot/jobs/${resumeJob.id}/action`, { action: "retry" });
     receipt = { jobIds: [resumeJob.id] };
     process.stdout.write("Resuming isolated fixture using completed transcription and storage checkpoints; acknowledged unfinished test AI call.\n");
   } else {

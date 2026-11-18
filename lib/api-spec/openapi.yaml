@@ -179,6 +179,7 @@ paths:
         "401": { description: Sign in required }
     patch:
       operationId: updateAIUsageLimit
+      deprecated: true
       requestBody:
         required: true
         content:
@@ -192,6 +193,7 @@ paths:
               schema: { $ref: "#/components/schemas/AIUsageReport" }
         "400": { description: Invalid limit }
         "401": { description: Sign in required }
+        "410": { description: Legacy AI billing controls have been removed }
   /autopilot/render-budget:
     get:
       operationId: getRenderBudget
@@ -836,7 +838,7 @@ components:
         language: { type: string }
         category: { type: string, enum: [source, narration, es, pt] }
         callKey: { type: string }
-        status: { type: string, enum: [started, done, uncertain, rejected] }
+        status: { type: string, enum: [started, done, uncertain, rejected, failed] }
         units: { type: integer }
         model: { type: [string, "null"] }
         metrics: { $ref: "#/components/schemas/AIUsageMetrics" }
@@ -924,7 +926,7 @@ components:
       type: object
       required: [action]
       properties:
-        action: { type: string, enum: [cancel, retry, acknowledge-uncertain] }
+        action: { type: string, enum: [cancel, retry] }
     ActionReceipt:
       type: object
       required: [message]

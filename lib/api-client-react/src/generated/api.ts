@@ -1352,6 +1352,9 @@ export const getUpdateAIUsageLimitUrl = () => {
   return `/api/autopilot/usage`
 }
 
+/**
+ * @deprecated
+ */
 export const updateAIUsageLimit = async (aIUsageLimitInput: AIUsageLimitInput, options?: Parameters<typeof customFetch>[1]): Promise<AIUsageReport> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
@@ -1415,7 +1418,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateAIUsageLimitMutationError = ErrorType<void>
     export type UpdateAIUsageLimitMutationVariables = {data: BodyType<AIUsageLimitInput>}
 
-    export const useUpdateAIUsageLimit = <TError = ErrorType<void>,
+    /**
+ * @deprecated
+ */
+export const useUpdateAIUsageLimit = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAIUsageLimit>>, TError,UpdateAIUsageLimitMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof updateAIUsageLimit>>,

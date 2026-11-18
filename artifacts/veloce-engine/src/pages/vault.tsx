@@ -173,7 +173,7 @@ export default function Vault() {
                 {active.renderError && <div className="text-amber-400">{active.renderError}</div>}
                 {renderStopped && <div>Previous video unchanged. <Link href="/" className="underline">Open Studio Autopilot to recover this job</Link>.</div>}
                 {!active.canRegenerate && !active.demo && <div>Retained source inputs are unavailable for this historical clip. Start a new source batch to enable regeneration.</div>}
-                {active.canRegenerate && <div>Regeneration uses one render allowance. AI uses your OpenAI key when configured, otherwise managed AI. Existing word-transcribed captions are reused with unchanged narration; older captions are realigned. Framing follows detected faces and supports two separated speakers. Automatic AI retries may incur additional charges. Campaign selection changes the saved association, not the original sponsor media.</div>}
+                {active.canRegenerate && <div>Regeneration uses one render allowance. AI uses your OpenAI key directly, with at most two retries three seconds apart. OpenAI errors appear on the job card. Existing word-transcribed captions are reused with unchanged narration; older captions are realigned. Framing follows detected faces and supports two separated speakers. Campaign selection changes the saved association, not the original sponsor media.</div>}
                 {dirty && <div>Save your edits before regenerating.</div>}
               </div>
               <div className="grid xl:grid-cols-[300px_1fr] gap-6 p-4 md:p-5">

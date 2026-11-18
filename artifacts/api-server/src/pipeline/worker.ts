@@ -1,14 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { db, pool, autopilotJobsTable as jobs, projectsTable, workerServicesTable, aiCheckpointsTable } from "@workspace/db";
+import { db, pool, autopilotJobsTable as jobs, projectsTable, workerServicesTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { runAutopilot } from "./autopilot-process";
-import { JobContext, jobContext, JobStoppedError, UncertainCallError, AIRequestRejectedError } from "./job-context";
+import { JobContext, jobContext, JobStoppedError } from "./job-context";
 import { startPollLoop, type PollObserver } from "../lib/poll-loop";
 import { reserveOutputs, releaseOutputs, RenderBudgetPaused } from "../lib/render-budget";
 import { redactError, nextFailure, permanentMediaFailure } from "../lib/failure-policy";
-import { AIUsagePaused } from "../lib/ai-usage";
-import { AIRetryScheduled, AIRetriesExhausted } from "./ai-retry";
+import { OpenAIRequestError } from "../lib/openai-error";
 
 export const GLOBAL_SOURCE_LIMIT = 5;
 const running = new Set<Promise<void>>();
@@ -49,21 +48,16 @@ export async function runSlot(slot: number, run = runAutopilot, onlyOwner: strin
       if (!job!.originalClipId) await db.update(projectsTable).set({ status: "completed", stage: 5, progress: 100, error: null, updatedAt: new Date() }).where(eq(projectsTable.id, job!.projectId));
     } catch (error) {
       const [current] = await db.select().from(jobs).where(eq(jobs.id, id));
-      const [pendingAI] = await db.select().from(aiCheckpointsTable).where(and(eq(aiCheckpointsTable.jobId, id), eq(aiCheckpointsTable.status, "started"))).limit(1);
-      const retry = nextFailure(current?.failures ?? 0, new Date(), error instanceof AIRequestRejectedError ? error.notBefore : null);
+      const retry = nextFailure(current?.failures ?? 0);
       const stopped = error instanceof JobStoppedError || ctx.abort.signal.aborted;
       const status = current?.cancelRequested ? "cancelled"
         : stopped ? "queued" : error instanceof RenderBudgetPaused ? "budget_paused"
-        : error instanceof AIRetriesExhausted ? "failed"
-        : error instanceof AIRetryScheduled ? "retry"
-        : error instanceof AIRequestRejectedError && error.status !== 429 || permanentMediaFailure(error) ? "failed" : retry.status;
-      const failureKind = error instanceof AIRetryScheduled ? "ai_retry" : error instanceof AIUsagePaused ? "ai_usage_cap" : status === "budget_paused" ? "daily_cap"
-        : error instanceof AIRequestRejectedError && error.status === 429 ? "rate_limited"
+        : error instanceof OpenAIRequestError || permanentMediaFailure(error) ? "failed" : retry.status;
+      const failureKind = error instanceof OpenAIRequestError ? "openai_error" : status === "budget_paused" ? "daily_cap"
         : status === "failed" && retry.count < 2 ? "permanent" : status === "failed" ? "retry_exhausted" : "transient";
       const message = redactError(error);
-      const retryAt = error instanceof AIRetryScheduled ? error.notBefore : status === "budget_paused" ? (error as RenderBudgetPaused).resetAt : status === "retry" ? retry.retryAt
-        : error instanceof AIRequestRejectedError && error.status === 429 ? error.notBefore : null;
-      const counted = !["cancelled", "uncertain", "queued", "budget_paused"].includes(status);
+      const retryAt = status === "budget_paused" ? (error as RenderBudgetPaused).resetAt : status === "retry" ? retry.retryAt : null;
+      const counted = !["cancelled", "queued", "budget_paused"].includes(status);
       const changed = await db.update(jobs).set({ status, failureKind, retryAt, failures: counted ? retry.count : current?.failures ?? 0,
         error: status === "cancelled" ? "Cancelled. Completed clips and saved AI results are preserved." : message, updatedAt: new Date() })
         .where(and(eq(jobs.id, id), eq(jobs.leaseToken, token))).returning({ id: jobs.id });
@@ -84,10 +78,11 @@ export async function runSlot(slot: number, run = runAutopilot, onlyOwner: strin
 }
 /** Adopt queued historical projects without deleting/replacing any existing media. */
 export async function adoptLegacyJobs() {
-  // The owner approved automatic recovery of ambiguous AI attempts. Never touches social posts.
-  await db.execute(sql`UPDATE autopilot_jobs SET status='retry',retry_at=now(),failure_kind='ai_retry',
-    error='Resuming interrupted AI work automatically. Previous usage remains recorded.',updated_at=now()
-    WHERE status='uncertain' AND cancel_requested=false AND (lease_until IS NULL OR lease_until<now())`);
+  // Compatibility migration only: these retired AI states are never written again.
+  await db.execute(sql`UPDATE autopilot_jobs SET status='retry',retry_at=now(),failure_kind=NULL,
+    error=NULL,updated_at=now()
+    WHERE (status='uncertain' OR (status='budget_paused' AND failure_kind='ai_usage_cap') OR (status='retry' AND failure_kind='ai_retry'))
+      AND cancel_requested=false AND (lease_until IS NULL OR lease_until<now())`);
   await db.execute(sql`INSERT INTO autopilot_jobs(owner_id,project_id,request_key,input_hash,status,error)
     SELECT p.owner_id,p.id,'legacy:'||p.id,'legacy',
       'queued', NULL

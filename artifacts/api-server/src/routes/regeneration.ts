@@ -31,7 +31,7 @@ router.post("/clips/:id/regenerate", async (req, res): Promise<void> => {
         clipId: clip.id, version: info.version + 1, snapshot: snapshot(clip), recipe: info.recipe,
         previousScript: info.snapshot.script, voicePath: clip.voiceoverObjectPath, captionsPath: clip.captionsObjectPath,
       } },
-      notice: "Explicit editor regeneration. Previous playable version is preserved until replacement files pass checks. AI uses your direct OpenAI key when configured, otherwise managed AI; automatic retries may incur additional usage.",
+      notice: "Explicit editor regeneration. Previous playable version is preserved until replacement files pass checks. AI uses your direct OpenAI key, with at most two retries three seconds apart.",
     }).returning();
     await tx.insert(admissions).values({ ownerId: clip.ownerId, projectId: clip.projectId, jobId: job!.id, requestKey, inputHash: requestKey });
     const [updated] = await tx.update(clips).set({ renderInfo: info, regenerationJobId: job!.id }).where(eq(clips.id, clip.id)).returning();

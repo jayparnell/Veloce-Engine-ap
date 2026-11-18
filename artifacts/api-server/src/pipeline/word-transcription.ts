@@ -1,13 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { File } from "node:buffer";
 import { join, dirname } from "node:path";
-import { openai } from "../lib/ai-client";
+import { openai, requestOpenAI } from "../lib/ai-client";
 import { captureManagedUsage } from "../lib/ai-usage";
 import { command } from "./process";
 import { mediaPython, mediaRenderer } from "./paths";
-import { JobContext, AIRequestRejectedError } from "./job-context";
+import { JobContext } from "./job-context";
 import { pool } from "@workspace/db";
-import { AIRetriesExhausted } from "./ai-retry";
+import { prepareWhisperAudio } from "./whisper-upload";
 
 export type Word = { start: number; end: number; text: string };
 export type WordTranscript = { text: string; words: Word[]; segments: Word[]; provider: string; [key: string]: unknown };
@@ -32,12 +32,16 @@ export function wordTranscript(value: unknown, duration: number, provider: strin
   return { text: raw.text?.trim() || words.map(w => w.text).join(" "), words, segments, provider };
 }
 export async function remoteWordTranscript(path: string, duration: number, signal?: AbortSignal, client = openai) {
-  const response = await client.audio.transcriptions.create({ model: "whisper-1",
-    file: new File([await readFile(path)], "audio.mp3", { type: "audio/mpeg" }),
+  const prepared = await prepareWhisperAudio(path);
+  try {
+  const bytes = await readFile(prepared.path);
+  const response = await requestOpenAI(() => client.audio.transcriptions.create({ model: "whisper-1",
+    file: new File([bytes], "audio.mp3", { type: "audio/mpeg" }),
     response_format: "verbose_json", timestamp_granularities: ["word"] },
-    { maxRetries: 0, timeout: 120000, signal });
+    { maxRetries: 0, timeout: 120000, signal }), signal);
   await captureManagedUsage(response, "whisper-1");
   return wordTranscript(response, duration, "whisper-1");
+  } finally { await prepared.cleanup(); }
 }
 export async function localWordTranscript(path: string, duration: number, ctx?: JobContext) {
   const deadline = Date.now() + 900000;
@@ -62,17 +66,15 @@ export async function localWordTranscript(path: string, duration: number, ctx?: 
 }
 export async function transcribeWords(path: string, duration: number, ctx?: JobContext, key = "word-transcription",
   services = { remote: remoteWordTranscript, local: localWordTranscript }) {
-  const fallbackKey = `asr-local:${key}`;
+  const fallbackKey = `asr-local-format:${key}`;
   if (ctx?.job.checkpoint[fallbackKey]) return ctx.ai(`${key}:local`, () => services.local(path, duration, ctx));
   try {
     return ctx ? await ctx.ai(key, () => services.remote(path, duration, ctx.abort.signal))
       : await services.remote(path, duration);
   } catch (error) {
-    // Do not hide authentication/permission errors. Transient calls get their full durable retry allowance.
-    const fallback = error instanceof AIRetriesExhausted ||
-      error instanceof AIRequestRejectedError && [400, 404, 422].includes(error.status) ||
-      !ctx && ![401, 403].includes(Number((error as { status?: number }).status));
-    if (!fallback) throw error;
+    // A failed OpenAI request must stay visible, never disappear behind CPU fallback.
+    // Only a successful response without usable timestamps may use local alignment.
+    if (!(error as { localFallback?: boolean })?.localFallback) throw error;
     if (ctx) await ctx.save(fallbackKey, true);
     return ctx ? ctx.ai(`${key}:local`, () => services.local(path, duration, ctx)) : services.local(path, duration);
   }

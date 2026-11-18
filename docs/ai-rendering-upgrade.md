@@ -2,13 +2,13 @@
 
 ## Billing and retries
 
-When `OPENAI_API_KEY` exists, every production OpenAI request uses `https://api.openai.com/v1` and that key. Without it, the existing managed AI connection is retained. Requests never silently switch billing sources on failure. Scoring and translation use `gpt-4o-mini`; narration retains `gpt-audio`.
+Every production OpenAI request uses `https://api.openai.com/v1` with `OPENAI_API_KEY`. Managed AI routing is no longer used. Missing keys fail explicitly. Scoring and translation use `gpt-4o-mini`; narration uses `gpt-audio`.
 
-Each durable AI checkpoint allows an initial attempt plus **three automatic retries**. Backoff is 2, 4 and 8 seconds, or longer when required by `Retry-After`. Eligibility and attempt counts survive worker restarts. The worker releases its source slot during the wait. Successful checkpoints are reused; simultaneous callers for the same checkpoint share a single invocation.
+The request helper uses standard try/catch: an initial call plus **two retries**, with a fixed **three-second delay**. SDK and batch-library retries are disabled, so retries cannot multiply. Cancellation interrupts waiting. After the final failed call, the original provider HTTP status and message are saved on the job and shown in its red error box. Credentials are redacted, but documentation URLs and diagnostic parameters are preserved.
 
-Stable, owner/job/stage-scoped request keys are sent as `Idempotency-Key` and `X-Client-Request-Id`. They prevent duplicate local results and assist provider tracing, but **do not promise provider-side billing deduplication**. The owner explicitly approved automatic ambiguous-timeout retries despite possible additional charges. Direct OpenAI accounts still have rate limits.
+The AI billing state machine, admission locks, pending billing checkpoints, persistent retry counters and AI request-unit caps are retired. Completed processing results are still cached for resumability. Passive known metrics and historical receipts remain available without gating requests. Retries can still incur additional OpenAI charges, and OpenAI's own rate and quota limits still apply.
 
-Each attempt keeps a usage receipt: definitive API rejections use zero internal units; uncertain requests remain counted; known metrics stay known even if a later persistence step fails. After exhaustion the job fails clearly rather than awaiting billing approval. A deliberate manual Retry resets attempt counters, not successful results or historical receipts. Quotas, active leases, cancellation and provider cooldowns remain enforced.
+Render quotas, active-job and daily-job quotas, cancellation and worker leases remain enforced. The worker never adds its generic media retry on top of exhausted OpenAI retries.
 
 Historical AI approval holds resume automatically on the worker's next poll. Existing queued work may therefore run after the service starts. These rules do **not** relax TikTok review/consent or uncertain social-posting reconciliation.
 
@@ -16,7 +16,9 @@ Historical AI approval holds resume automatically on the worker's next poll. Exi
 
 Source audio and fitted narration use `whisper-1`, `verbose_json`, and `timestamp_granularities: ["word"]`. Narration is tempo-fitted before transcription so captions describe the audio actually used in the rendered MP4. Invalid or absent timestamps are rejected, not replaced with evenly spaced word estimates.
 
-If the selected endpoint cannot provide the requested transcription format, or transient API retries are exhausted, a separate checkpoint runs `faster-whisper` base on CPU (`int8`, two threads). Authentication errors are not hidden by fallback. CPU transcription is limited to one process across workers, and it cannot route a request to another paid AI service. Its model downloads only when this fallback is requested, into the ignored generated-artifacts model cache; tests do not download it.
+Every Whisper upload is first encoded as mono 64 kbps MP3 (`-ac 1 -b:a 64k`). The final file must be smaller than 24,000,000 bytes, leaving headroom under the 25 MB API limit; oversized recordings fail locally with an instruction to split them and are never uploaded. Source transcription already uses bounded chunks.
+
+Only a successful response with unusable word timestamps may fall back to `faster-whisper` base on CPU (`int8`, two threads). Failed OpenAI requests, including quota and invalid-parameter errors, are never hidden by fallback. CPU transcription is limited to one process across workers. Its model downloads only when requested, into the ignored model cache; tests do not download it.
 
 SRT retains millisecond timestamps. ASS necessarily represents centiseconds and video presentation is bounded by frame rate. ASR recognition/alignment is not perfect speech timing and requires review. Original word-transcribed captions remain reusable during unchanged-narration regeneration; historical estimated captions are upgraded during explicit regeneration. Save itself remains metadata-only and failed replacements leave the prior playable asset set intact.
 

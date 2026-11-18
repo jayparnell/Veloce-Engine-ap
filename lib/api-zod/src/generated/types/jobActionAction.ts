@@ -12,5 +12,4 @@ export type JobActionAction = typeof JobActionAction[keyof typeof JobActionActio
 export const JobActionAction = {
   cancel: 'cancel',
   retry: 'retry',
-  'acknowledge-uncertain': 'acknowledge-uncertain',
 } as const;
