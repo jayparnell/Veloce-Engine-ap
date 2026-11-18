@@ -26,7 +26,7 @@ export class JobSource {
         const output = args.indexOf("-o");
         const options = [...args];
         // Absolute -o would make yt-dlp ignore --paths, leaking partial streams.
-        options[output + 1] = basename(this.path);
+        options[output + 1] = basename(args[output + 1]!);
         return this.execute(exe, ["--paths", "home:/tmp", "--paths", `temp:${this.temporary}`, ...options], timeout);
       });
       const bytes = (await stat(this.path)).size;

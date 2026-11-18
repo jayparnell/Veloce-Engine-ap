@@ -28,12 +28,13 @@ export function vodArguments(sourceUrl: string, destination: string, fallback = 
     "--no-continue", "--force-overwrites",
     "--max-filesize", "2G", "--break-on-reject",
     "--match-filter", `!is_live & duration <= ${MAX_SOURCE_SECONDS}`,
-    "--force-ipv4", "--extractor-args", "youtube:player_client=ios,web",
+    "--force-ipv4", "--js-runtimes", `node:${process.execPath}`,
     ...(fallback && botRetry ? ["--no-check-certificates", "--geo-bypass"] : []),
-    "-f", "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/bestvideo[ext=mp4][height<=1080]",
-    "--format-sort", "vcodec:h264",
+    "-f", "bv*[height<=1080]+ba/b[height<=1080]/best",
     "--merge-output-format", "mp4", "--remux-video", "mp4",
-    "-o", destination, "--", sourceUrl,
+    // Let the downloaded container keep its real extension until remuxing.
+    // A forced .mp4 download name can yield .mp4.mp4 for single WebM streams.
+    "-o", destination.replace(/\.mp4$/i, ".%(ext)s"), "--", sourceUrl,
   ];
 }
 
@@ -43,7 +44,7 @@ export const extractionBase = [
   "--use-extractors", "youtube.*,twitch.*,kick.*",
 ];
 export function metadataArguments(url: string, fallback = false, botRetry = false) {
-  return [...extractionBase, "--force-ipv4", "--extractor-args", "youtube:player_client=ios,web",
+  return [...extractionBase, "--force-ipv4", "--js-runtimes", `node:${process.execPath}`,
     ...(fallback && botRetry ? ["--no-check-certificates", "--geo-bypass"] : []),
     "--skip-download", "--dump-single-json", "--", url];
 }

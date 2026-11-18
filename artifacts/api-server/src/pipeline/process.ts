@@ -29,7 +29,11 @@ export async function command(executable: string, args: string[], timeout = 3000
   return new Promise((resolveOutput, reject) => {
     const signal = jobContext.getStore()?.abort.signal;
     if (signal?.aborted) { reject(new JobStoppedError("Processing cancelled.")); return; }
-    const child = spawn(executable, commandArgs, { detached: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, OMP_NUM_THREADS: "2" } });
+    // The Nix yt-dlp executable can lag behind YouTube. Use the tracked Python
+    // package (including its EJS solver) in Preview and published workers alike.
+    const child = spawn(executable === "yt-dlp" ? python : executable,
+      executable === "yt-dlp" ? ["-m", "yt_dlp", ...commandArgs] : commandArgs,
+      { detached: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, OMP_NUM_THREADS: "2" } });
     const abort = () => {
       try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch {}
     };

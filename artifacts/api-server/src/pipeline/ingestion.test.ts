@@ -6,10 +6,10 @@ test("full VOD selection allows four hours without a truncated download section"
   const args = vodArguments("https://youtu.be/authorized", "/tmp/test.mp4");
   assert(!args.includes("--download-sections"));
   assert(args.includes("!is_live & duration <= 14400"));
-  assert(args.includes("youtube:player_client=ios,web")); assert(args.includes("--force-ipv4"));
-  assert(args.includes("bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/bestvideo[ext=mp4][height<=1080]"));
+  assert(!args.includes("--extractor-args")); assert(args.includes("--force-ipv4"));
+  assert(args.includes("bv*[height<=1080]+ba/b[height<=1080]/best"));
 });
-test("fallback downloads the full source with a different client/stream profile", async () => {
+test("fallback downloads the full source using native client selection", async () => {
   const attempts: string[][] = [];
   await ingestVod("https://youtu.be/authorized", "/tmp/test.mp4", async (_cmd, args) => {
     attempts.push(args);
@@ -17,7 +17,7 @@ test("fallback downloads the full source with a different client/stream profile"
     return "";
   });
   assert.equal(attempts.length, 2);
-  assert(attempts[1]!.includes("youtube:player_client=ios,web"));
+  assert(!attempts[1]!.includes("--extractor-args"));
   assert(!attempts[1]!.includes("--download-sections"));
 });
 test("both failed attempts retain the actual error for the batch", async () => {

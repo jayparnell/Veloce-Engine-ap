@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { metadataArguments, vodArguments, sliceArguments, ingestVod } from "../pipeline/ingestion";
-import { mkdtemp, rm, copyFile, writeFile, stat, access } from "node:fs/promises";
+import { mkdtemp, rm, copyFile, writeFile, stat, access, readFile, readdir } from "node:fs/promises";
+import { createServer } from "node:http";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import type { AddressInfo } from "node:net";
+import { mediaPython } from "../pipeline/paths";
 import { randomInt } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -13,7 +18,8 @@ import { groundedMoments, fallbackMoments, fallbackWindows, hasSpeech } from "..
 test("metadata stays lightweight and full-source retries never request remote sections", async () => {
   const meta = metadataArguments("https://youtu.be/fixture");
   assert(meta.includes("--skip-download")); assert(!meta.includes("--download-sections"));
-  assert(meta.includes("youtube:player_client=ios,web")); assert(meta.includes("--force-ipv4"));
+  assert(!meta.includes("--extractor-args")); assert(meta.includes("--force-ipv4"));
+  assert.equal(meta[meta.indexOf("--js-runtimes") + 1], `node:${process.execPath}`);
   const calls: string[][] = [];
   await ingestVod("https://youtu.be/fixture", "/tmp/fixture.mp4", async (_exe, args) => {
     calls.push(args); if (calls.length === 1) throw new Error("Format unavailable"); return "";
@@ -21,10 +27,12 @@ test("metadata stays lightweight and full-source retries never request remote se
   assert.equal(calls.length, 2);
   for (const args of calls) {
     assert(!args.includes("--download-sections")); assert(args.includes("--no-plugin-dirs"));
-    assert.equal(args[args.indexOf("-f") + 1], "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/bestvideo[ext=mp4][height<=1080]");
+    assert.equal(args[args.indexOf("-f") + 1], "bv*[height<=1080]+ba/b[height<=1080]/best");
+    assert(!args.includes("--extractor-args")); assert(!args.includes("--format-sort"));
+    assert.equal(args[args.indexOf("--merge-output-format") + 1], "mp4");
     assert(args.includes("--no-continue")); assert.equal(args[args.indexOf("--concurrent-fragments") + 1], "1");
   }
-  assert(calls[1]!.includes("youtube:player_client=ios,web"));
+  assert(!calls[1]!.includes("--extractor-args"));
   assert(!calls[1]!.includes("--no-check-certificates"));
   assert.throws(() => sliceArguments("/tmp/fixture.mp4", "/tmp/clip.mp4", 0, 600));
 });
@@ -42,7 +50,7 @@ test("one full VOD supplies three real local ffmpeg slices and cleanup removes a
     const paths = args.flatMap((value, i) => value === "--paths" ? [args[i + 1]!] : []);
     parts = paths.find(p => p.startsWith("temp:"))!.slice(5);
     assert(paths.includes("home:/tmp"));
-    assert.equal(args[args.indexOf("-o") + 1], source.path.split("/").at(-1));
+    assert.equal(args[args.indexOf("-o") + 1], source.path.split("/").at(-1)!.replace(".mp4", ".%(ext)s"));
     await writeFile(join(parts, "partial-stream.part"), "fixture");
     await copyFile(input, source.path); return "";
   });
@@ -141,7 +149,8 @@ test("bot checks retry once with a fresh connection, exact raw proxy and bot-onl
       calls.push(prepared);
       assert.equal(prepared[prepared.indexOf("--proxy") + 1], proxy);
       assert(prepared.includes("--force-ipv4"));
-      assert(prepared.includes("youtube:player_client=ios,web"));
+      assert(!prepared.includes("--extractor-args"));
+      assert.equal(prepared[prepared.indexOf("--js-runtimes") + 1], `node:${process.execPath}`);
       if (calls.length === 1) throw new Error("Sign in to confirm you're not a bot");
       return JSON.stringify({ title: "fixture", duration: 14400 });
     };
@@ -209,4 +218,55 @@ test("15- and 55-second local cuts retain their full duration and RMS scanning r
     }
     assert.equal((await fallbackMoments(source, 56, command)).length, 1);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+test("current yt-dlp accepts merged WebM, single-stream VP9/Opus and HLS at the exact MP4 path", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "universal-vod-"));
+  const server = createServer();
+  try {
+    const video = join(dir, "video.webm"), audio = join(dir, "audio.webm"), muxed = join(dir, "muxed.webm");
+    await command("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "color=s=160x90:r=5:d=2", "-c:v", "libvpx-vp9", "-threads", "1", "-an", video]);
+    await command("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-c:a", "libopus", "-vn", audio]);
+    await command("ffmpeg", ["-v", "error", "-i", video, "-i", audio, "-c", "copy", muxed]);
+    await command("ffmpeg", ["-v", "error", "-i", muxed, "-c:v", "libx264", "-threads", "1", "-g", "5", "-c:a", "aac",
+      "-hls_time", "1", "-hls_list_size", "0", "-hls_segment_filename", join(dir, "segment-%d.ts"), join(dir, "playlist.m3u8")]);
+    const files = new Map<string, Buffer>(await Promise.all((await readdir(dir)).map(async name => [`/${name}`, await readFile(join(dir, name))] as const)));
+    server.on("request", (req, res) => {
+      const bytes = files.get(req.url!);
+      if (!bytes) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { "content-type": "video/webm", "content-length": bytes.length });
+      res.end(bytes);
+    });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    for (const mode of ["merged", "single", "hls"]) {
+      const info = join(dir, `info-${mode}.json`);
+      const common = { protocol: "http", ext: "webm" };
+      const formats = mode === "hls"
+        ? [{ protocol: "m3u8_native", ext: "mp4", format_id: "hls", url: `${origin}/playlist.m3u8`, vcodec: "h264", acodec: "aac", height: 90, width: 160 }]
+        : mode === "single"
+        ? [{ ...common, format_id: "muxed", url: `${origin}/muxed.webm`, vcodec: "vp9", acodec: "opus", height: 90, width: 160 }]
+        : [{ ...common, format_id: "audio", url: `${origin}/audio.webm`, vcodec: "none", acodec: "opus" },
+          { ...common, format_id: "video", url: `${origin}/video.webm`, vcodec: "vp9", acodec: "none", height: 90, width: 160 }];
+      await writeFile(info, JSON.stringify({ id: "fixture", title: "Local WebM fixture", duration: 2, extractor_key: "Generic", extractor: "generic", webpage_url: origin, formats }));
+      // Load local metadata, disable proxies explicitly, and serve only loopback bytes.
+      // Never use real YouTube URLs, proxy credentials or cookies in this integration test.
+      const source = new JobSource(randomInt(500000000, 600000000), origin, async (_exe, args) => {
+        const result = await promisify(execFile)(mediaPython, ["-m", "yt_dlp", ...args.slice(0, -2),
+          "--proxy", "", "--load-info-json", info], { timeout: 60000, maxBuffer: 1024 * 1024 });
+        return result.stdout;
+      });
+      try {
+        const destination = await source.get();
+        assert.equal(destination, source.path);
+        const probe = JSON.parse(await command("ffprobe", ["-v", "error", "-show_format", "-show_streams", "-of", "json", destination]));
+        assert(probe.format.format_name.includes("mp4"));
+        assert(probe.streams.some((s: { codec_name: string }) => s.codec_name === (mode === "hls" ? "h264" : "vp9")));
+        assert(probe.streams.some((s: { codec_name: string }) => s.codec_name === (mode === "hls" ? "aac" : "opus")));
+        await assert.rejects(access(`${destination}.mp4`));
+      } finally { await source.cleanup(); }
+    }
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    await rm(dir, { recursive: true, force: true });
+  }
 });

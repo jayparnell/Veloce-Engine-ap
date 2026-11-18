@@ -42,7 +42,7 @@ export async function runAutopilot(ctx: JobContext, connection: PoolClient) {
   await mkdir(dirRoot, { recursive: true });
   const dir = await mkdtemp(join(dirRoot, `autopilot-${ctx.job.id}-`));
   const remoteSource = new JobSource(ctx.job.id, project.sourceUrl, async (exe, args, timeout) => {
-    await ctx.update({ notice: "Downloading a full source MP4 (up to 1080p and 2 GB) using the configured proxy without credential rewriting. Audio and clips are sliced locally; the temporary full source is removed after rendering." });
+    await ctx.update({ notice: "Downloading the full source with native format selection (1080p preferred, up to 2 GB) and remuxing to MP4. Proxy credentials are unchanged. Audio and clips are sliced locally; the temporary full source is removed after rendering." });
     return command(exe, args, timeout);
   });
   try {

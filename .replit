@@ -191,4 +191,4 @@ timeoutMs = 60000
 
 [nix]
 channel = "stable-25_05"
-packages = ["ffmpeg", "python313", "yt-dlp"]
+packages = ["ffmpeg", "python313", "yt-dlp", "gcc", "zlib"]
