@@ -3,11 +3,11 @@ name: AI billing choice
 description: Explicit provider and billing constraint for Veloce Engine media processing
 ---
 
-Use Replit AI Integrations' built-in `gpt-audio` or `gpt-audio-mini` for voiceovers rather than the external `tts-1` speech endpoint. Do not require an external `OPENAI_API_KEY`.
+The user's newer pipeline brief overrides the earlier managed-only billing choice: when `OPENAI_API_KEY` is configured, route all OpenAI calls directly to OpenAI and use `gpt-4o-mini` for moment scoring and `whisper-1` for word-timestamp transcription. When no direct key is configured, retain the managed connection rather than requiring an external key.
 
-**Why:** The user explicitly wants everything to run on their Replit credits without an external OpenAI key.
+**Why:** The user now explicitly requested BYOK routing to avoid consuming Replit AI credits when their own key is available. Direct requests are billed by OpenAI and still have provider rate limits.
 
-**How to apply:** Keep transcription, scripting and voiceover calls on the managed AI connection when maintaining the media pipeline. Social-platform OAuth credentials are separate from this AI billing choice.
+**How to apply:** Apply the selected billing route consistently to transcription, scripting and voiceover calls. Do not silently reroute a failing direct-key request to a different billing source. Social-platform OAuth credentials are separate from this AI billing choice.
 
 Usage reporting must distinguish provider metrics, conservative internal request units, and actual Replit credit charges. Never convert tokens or request units into credits or currency without an official supported charge source.
 
