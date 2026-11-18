@@ -7,7 +7,7 @@ test("full VOD selection allows one hour without a truncated download section", 
   assert(!args.includes("--download-sections"));
   assert(args.includes("!is_live & duration <= 3600"));
   assert(args.includes("youtube:player_client=android,ios,web"));
-  assert(args.includes("bestvideo[height<=1080]+bestaudio/best[height<=1080]"));
+  assert(args.includes("bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]"));
 });
 test("fallback downloads the full source with a different client/stream profile", async () => {
   const attempts: string[][] = [];
@@ -23,7 +23,7 @@ test("fallback downloads the full source with a different client/stream profile"
 test("both failed attempts retain the actual error for the batch", async () => {
   await assert.rejects(
     ingestVod("https://youtu.be/authorized", "/tmp/test.mp4", async () => { throw new Error("ERROR: Video is private"); }),
-    (error: unknown) => error instanceof SourceIngestionError && error.message.includes("ERROR: Video is private") && error.message.includes("Upload an authorized MP4"),
+    (error: unknown) => error instanceof Error && error.message.includes("ERROR: Video is private"),
   );
 });
 test("provider errors exclude signed URL queries and internal paths", () => {

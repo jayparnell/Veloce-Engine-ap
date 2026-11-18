@@ -12,7 +12,8 @@ import { JobContext } from "./job-context";
 import { command } from "./process";
 import { synthesizeVoiceover } from "./audio";
 import { getSourceMetadata, accessibleCaptions, retainedRanges, boundedMoment, type Segment } from "./transcript";
-import { ingestRange } from "./ingestion";
+import { sliceArguments } from "./ingestion";
+import { JobSource } from "./job-source";
 import { ownedFile, storeLocalFile } from "../lib/mediaStorage";
 import { finalizeUpload } from "../lib/uploads";
 import { assignReadyClips } from "../publishing/allocator";
@@ -46,6 +47,10 @@ export async function runAutopilot(ctx: JobContext, connection: PoolClient) {
   const dirRoot = join(root, "generated-artifacts/media-work");
   await mkdir(dirRoot, { recursive: true });
   const dir = await mkdtemp(join(dirRoot, `autopilot-${ctx.job.id}-`));
+  const remoteSource = new JobSource(ctx.job.id, project.sourceUrl, async (exe, args, timeout) => {
+    await ctx.update({ notice: "Downloading a full source MP4 (up to 1080p and 2 GB) using the job's proxy session. Audio and clips are sliced locally; the temporary full source is removed after rendering." });
+    return command(exe, args, timeout);
+  });
   try {
     let moments = ctx.job.checkpoint.moments as Moment[] | undefined;
     let transcript = ctx.job.checkpoint.transcript as Segment[] | undefined;
@@ -93,14 +98,14 @@ export async function runAutopilot(ctx: JobContext, connection: PoolClient) {
         const start = performance.now();
         transcript = !localSource ? await accessibleCaptions(ctx.job.checkpoint.metadata as Awaited<ReturnType<typeof getSourceMetadata>>) : [];
         if (transcript.length) {
-          await ctx.update({ notice: "Analysis uses accessible timed source captions. Selected-range requests can transfer extra bytes for keyframes or segmented protocols. No access-control bypass is attempted." });
+          await ctx.update({ notice: "Analysis uses accessible timed source captions. Video retrieval downloads a full source MP4 once per job, then slices clips locally. No access-control bypass is attempted." });
           await ctx.save("transcriptKind", "timed-captions");
         } else {
           const bound = Math.min(600, duration);
           await ctx.update({ stage: "bounded transcription", progress: 12, notice: `Timed captions were unavailable. Transcribing only the first ${bound} seconds (maximum 10 minutes); moment selection is restricted to that coverage. Whisper word timestamps are preserved; local CPU ASR is used if the selected API cannot provide them. Recognition still requires review.` });
           const audio = join(dir, "fallback.mp3");
-          if (!localSource) await ingestRange(project.sourceUrl, audio, 0, bound, command, true);
-          else await command("ffmpeg", ["-v", "error", "-y", "-i", localSource, "-t", String(bound), "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", audio]);
+          localSource ??= await remoteSource.get();
+          await command("ffmpeg", sliceArguments(localSource, audio, 0, bound, true));
           const tasks = Array.from({ length: Math.ceil(bound / 120) }, (_, i) => ({ start: i * 120, end: Math.min(bound, (i + 1) * 120) }));
           const transcriptions = await batchProcess(tasks, async (chunk) => {
             try {
@@ -161,7 +166,7 @@ export async function runAutopilot(ctx: JobContext, connection: PoolClient) {
       if (exists) continue;
       const receipt = await connection.query("SELECT completed_at FROM render_reservations WHERE output_key=$1", [outputKey(ctx.job.id, index)]);
       if (receipt.rows[0]?.completed_at) continue; // Deleted output is not a new allowance.
-      await ctx.save(`clip:${index}:status`, "narration + selected range");
+      await ctx.save(`clip:${index}:status`, "narration + local source slice");
       await ctx.update({ stage: `clip ${index + 1}/${moments!.length}`, progress: 35 + Math.floor(index / moments!.length * 60) });
       // Independent download and narration overlap. Both are joined before temporary files are removed.
       const work = await Promise.allSettled([
@@ -171,8 +176,8 @@ export async function runAutopilot(ctx: JobContext, connection: PoolClient) {
           if (old) return old;
           const source = join(dir, `range-${index}.mp4`);
           const start = moment.start, end = moment.end;
-          if (localSource) await command("ffmpeg", ["-v", "error", "-y", "-ss", String(start), "-i", localSource, "-t", String(end - start), "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-c:a", "aac", source]);
-          else await ingestRange(project.sourceUrl, source, start, end, command);
+          localSource ??= await remoteSource.get();
+          await command("ffmpeg", sliceArguments(localSource, source, start, end));
           if ((await stat(source)).size > 250 * 1024 ** 2) throw new Error("Source selected range exceeds the 250 MB clip limit.");
           const segments = (ctx.job.checkpoint.transcriptKind === "timed-captions" ? retainedRanges(start, end, transcript!) : [{ start, end, title: moment.title }])
             .map((s) => ({ ...s, start: s.start - start, end: s.end - start }));
@@ -255,5 +260,8 @@ export async function runAutopilot(ctx: JobContext, connection: PoolClient) {
       await ctx.save(`clip:${index}:status`, "ready");
       await assignReadyClips(owner);
     }
-  } finally { await rm(dir, { recursive: true, force: true }); }
+  } finally {
+    try { await remoteSource.cleanup(); }
+    finally { await rm(dir, { recursive: true, force: true }); }
+  }
 }

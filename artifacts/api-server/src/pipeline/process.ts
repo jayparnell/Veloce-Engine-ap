@@ -11,7 +11,7 @@ import { finalizeUpload } from "../lib/uploads";
 import { sampleClips } from "../lib/demo";
 import { transcribeSource, synthesizeVoiceover } from "./audio";
 import { ingestVod, sourceToolError, SourceIngestionError, MAX_REMOTE_BYTES } from "./ingestion";
-import { jobContext } from "./job-context";
+import { jobContext, JobStoppedError } from "./job-context";
 import { workspaceRoot as root, mediaPython as python, mediaRenderer as worker } from "./paths";
 import { redactError } from "../lib/failure-policy";
 import { snapshot } from "./render-state";
@@ -27,9 +27,11 @@ export async function command(executable: string, args: string[], timeout = 3000
   const commandArgs = executable === "yt-dlp" ? await prepareYtdlpArguments(args) : args;
   return new Promise((resolveOutput, reject) => {
     const signal = jobContext.getStore()?.abort.signal;
-    if (signal?.aborted) { reject(new Error("Processing cancelled.")); return; }
+    if (signal?.aborted) { reject(new JobStoppedError("Processing cancelled.")); return; }
     const child = spawn(executable, commandArgs, { detached: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, OMP_NUM_THREADS: "2" } });
-    const abort = () => { try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch {} };
+    const abort = () => {
+      try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch {}
+    };
     signal?.addEventListener("abort", abort, { once: true });
     let out = "";
     let error = "";
@@ -45,6 +47,7 @@ export async function command(executable: string, args: string[], timeout = 3000
     child.on("close", (code) => {
       clearTimeout(timer);
       signal?.removeEventListener("abort", abort);
+      if (signal?.aborted) { reject(new JobStoppedError("Processing cancelled.")); return; }
       if (code === 0) resolveOutput(out);
       else {
         if (executable === "yt-dlp") { reject(new SourceIngestionError(sourceToolError(error))); return; }

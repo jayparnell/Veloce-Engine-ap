@@ -1,15 +1,22 @@
 import { open, rename, rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { ProxyAgent } from "undici";
+import { jobContext } from "./job-context";
 
 export const YOUTUBE_COOKIE_FILE = "/tmp/youtube_cookies.txt";
 type NetworkEnvironment = { PROXY_URL?: string; YOUTUBE_COOKIES?: string };
-export function configuredProxy(env: NetworkEnvironment = process.env): string | undefined {
+export function configuredProxy(env: NetworkEnvironment = process.env, jobId = jobContext.getStore()?.job.id): string | undefined {
   const proxy = env.PROXY_URL?.trim();
   if (!proxy) return undefined;
   try {
     const url = new URL(proxy);
     if (!["http:", "https:"].includes(url.protocol) || !url.hostname || url.hash || url.search) throw new Error();
+    if (url.hostname === "gw.dataimpulse.com" && jobId !== undefined) {
+      if (!Number.isSafeInteger(jobId) || jobId < 1 || !url.username) throw new Error();
+      const username = decodeURIComponent(url.username).replace(/__ses\.[A-Za-z0-9_-]+$/, "");
+      url.username = `${username}__ses.${jobId}`;
+      return url.toString();
+    }
   } catch {
     // Do not interpolate a URL, parser exception, username or password here.
     throw new Error("Invalid PROXY_URL configuration. Use an HTTP or HTTPS residential proxy URL; credentials must be URL-encoded. No direct request was attempted.");

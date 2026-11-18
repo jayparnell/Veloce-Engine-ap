@@ -7,20 +7,17 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { ProxyAgent } from "undici";
 import { configuredProxy, prepareYtdlpArguments, withCaptionResponse, writeYouTubeCookies, YOUTUBE_COOKIE_FILE } from "../pipeline/youtube-network";
-import { metadataArguments, rangeArguments, vodArguments, sourceToolError } from "../pipeline/ingestion";
+import { metadataArguments, vodArguments, sourceToolError } from "../pipeline/ingestion";
+import { jobContext, type JobContext } from "../pipeline/job-context";
 import { accessibleCaptions } from "../pipeline/transcript";
 import { redactError } from "../lib/failure-policy";
 
 const proxy = "http://fixture-user:fixture-password@127.0.0.1:3128";
 const cookies = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tfixture-cookie-value\n";
 
-test("every metadata, audio, video range and VOD argument list receives proxy before --", async () => {
+test("every metadata and full-VOD request receives proxy before --", async () => {
   const commands = [
     metadataArguments("https://youtu.be/fixture"), metadataArguments("https://youtu.be/fixture", true),
-    rangeArguments("https://youtu.be/fixture", "/tmp/video.mp4", 0, 35),
-    rangeArguments("https://youtu.be/fixture", "/tmp/video.mp4", 0, 35, true),
-    rangeArguments("https://youtu.be/fixture", "/tmp/audio.mp3", 0, 600, false, true),
-    rangeArguments("https://youtu.be/fixture", "/tmp/audio.mp3", 0, 600, true, true),
     vodArguments("https://youtu.be/fixture", "/tmp/vod.mp4"),
     vodArguments("https://youtu.be/fixture", "/tmp/vod.mp4", true),
   ];
@@ -35,6 +32,28 @@ test("every metadata, audio, video range and VOD argument list receives proxy be
     assert.equal(args.at(-1), "https://youtu.be/fixture");
     assert.equal(original.includes("--proxy"), false);
   }
+});
+test("DataImpulse sticky sessions are stable across job operations and Retry, and differ between jobs", async () => {
+  const env = { PROXY_URL: "http://fixture-user:p%40ssword@gw.dataimpulse.com:823" };
+  const first = new URL(configuredProxy(env, 71)!);
+  assert.equal(decodeURIComponent(first.username), "fixture-user__ses.71");
+  assert.equal(decodeURIComponent(first.password), "p@ssword");
+  assert.equal(configuredProxy(env, 71), configuredProxy(env, 71));
+  assert.notEqual(configuredProxy(env, 71), configuredProxy(env, 72));
+  assert.equal(new URL(configuredProxy({ PROXY_URL: "http://fixture-user__ses.old:pass@gw.dataimpulse.com:823" }, 71)!).username, "fixture-user__ses.71");
+  assert.equal(configuredProxy({ PROXY_URL: proxy }, 71), proxy);
+  await jobContext.run({ job: { id: 71 } } as JobContext, async () => {
+    for (const args of [metadataArguments("https://youtu.be/fixture"), vodArguments("https://youtu.be/fixture", "/tmp/fixture.mp4")]) {
+      const prepared = await prepareYtdlpArguments(args, env);
+      assert.equal(prepared[prepared.indexOf("--proxy") + 1], first.toString());
+    }
+    assert.equal(configuredProxy(env), first.toString(), "caption transport resolves the identical job-scoped proxy");
+    const caption = await withCaptionResponse(new URL("https://www.youtube.com/api/timedtext"), r => r.text(), env,
+      async (_url, options) => { assert.ok((options as { dispatcher?: unknown }).dispatcher); return new Response("fixture captions"); });
+    assert.equal(caption, "fixture captions");
+  });
+  const safe = redactError(new Error(`ERROR: ${first.toString()}`), env);
+  assert.ok(!safe.includes("fixture-user")); assert.ok(!safe.includes("p@ssword")); assert.ok(!safe.includes("p%40ssword"));
 });
 test("proxy and cookies are independently optional, with no stale cookie fallback", async () => {
   const original = metadataArguments("https://youtu.be/fixture");

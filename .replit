@@ -80,7 +80,7 @@ isValidation = true
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/tests/slots.test.ts ../artifacts/api-server/src/tests/ingestion.test.ts ../artifacts/api-server/src/tests/youtube-network.test.ts ../artifacts/api-server/src/tests/adapters.test.ts"
+args = "pnpm --filter @workspace/scripts exec tsx --test --test-concurrency=1 ../artifacts/api-server/src/tests/slots.test.ts ../artifacts/api-server/src/tests/ingestion.test.ts ../artifacts/api-server/src/pipeline/ingestion.test.ts ../artifacts/api-server/src/tests/youtube-network.test.ts ../artifacts/api-server/src/tests/adapters.test.ts"
 
 [[workflows.workflow]]
 name = "media-unit"

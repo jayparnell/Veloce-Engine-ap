@@ -1,4 +1,4 @@
-import { metadataArguments, SourceIngestionError, MAX_SOURCE_SECONDS, MAX_REMOTE_BYTES } from "./ingestion";
+import { metadataArguments, SourceIngestionError, MAX_SOURCE_SECONDS, MAX_REMOTE_BYTES, isIngestionCancellation } from "./ingestion";
 import { withCaptionResponse } from "./youtube-network";
 
 export type Segment = { start: number; end: number; text: string };
@@ -18,11 +18,12 @@ export async function getSourceMetadata(url: string, execute: Execute): Promise<
   let raw: string;
   try { raw = await execute("yt-dlp", metadataArguments(url), 45000); }
   catch (first) {
+    if (isIngestionCancellation(first)) throw first;
     if (/private|geo.block|DRM|confirm.*bot/i.test(String(first))) throw first;
     raw = await execute("yt-dlp", metadataArguments(url, true), 45000);
   }
   const data = JSON.parse(raw) as SourceMetadata;
-  if (!Number.isFinite(data.duration) || data.duration < 30 || data.duration > MAX_SOURCE_SECONDS || data.is_live) throw new SourceIngestionError("Source must be a completed 30-second to 60-minute VOD. Upload an authorized MP4 instead.");
+  if (!Number.isFinite(data.duration) || data.duration < 30 || data.duration > MAX_SOURCE_SECONDS || data.is_live) throw new SourceIngestionError("Source must be a completed 30-second to 60-minute VOD.");
   if (Number(data.filesize ?? data.filesize_approx ?? 0) > MAX_REMOTE_BYTES) throw new SourceIngestionError("Source exceeds the 2 GB provider-reported size limit. Upload a smaller authorized MP4.");
   return { title: String(data.title ?? "Authorized source").slice(0, 160), duration: data.duration, subtitles: data.subtitles, automatic_captions: data.automatic_captions };
 }
