@@ -55,7 +55,7 @@ export async function runSlot(slot: number, run = runAutopilot, onlyOwner: strin
       logger.error({ operation: "media.lease_heartbeat", ...databaseFailure(error) }, "Media lease renewal failed");
     });
     try {
-      await reserveOutputs(job!.ownerId, id, job!.originalClipId ? 1 : (job!.checkpoint.moments as unknown[] | undefined)?.length ?? 5, token);
+      await reserveOutputs(job!.ownerId, id, job!.originalClipId ? 1 : Math.max(1, Math.min(3, (job!.checkpoint.moments as unknown[] | undefined)?.length ?? 1)), token);
       // Never put a queue-query deadline around paid work or its lock holder.
       await jobContext.run(ctx, () => run(ctx, session.raw));
       await ctx.update({ status: "completed", progress: 100, stage: "ready", error: null, retryAt: null, failureKind: null });

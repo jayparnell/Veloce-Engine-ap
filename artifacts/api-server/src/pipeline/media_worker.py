@@ -26,8 +26,8 @@ def probe(path):
 
 
 def validate_source_duration(duration):
-    if not math.isfinite(duration) or duration < 30 or duration > 3600:
-        raise ValueError("Source duration must be between 30 seconds and 60 minutes")
+    if not math.isfinite(duration) or duration < 15 or duration > 14400:
+        raise ValueError("Source duration must be between 15 seconds and 240 minutes")
 
 
 def analyze(source, output):
@@ -37,15 +37,16 @@ def analyze(source, output):
     info = probe(source)
     duration = float(info["format"]["duration"])
     validate_source_duration(duration)
-    if not any(stream["codec_type"] == "audio" for stream in info["streams"]):
-        raise ValueError("Source video must contain an audio track")
+    has_audio = any(stream["codec_type"] == "audio" for stream in info["streams"])
+    bound = min(duration, 600)
     audio = str(Path(output).with_suffix(".wav"))
-    run(["ffmpeg", "-v", "error", "-y", "-i", source, "-vn", "-ac", "1", "-ar", "16000", audio])
+    audio_input = ["-i", source] if has_audio else ["-f", "lavfi", "-i", "anullsrc=r=16000:cl=mono"]
+    run(["ffmpeg", "-v", "error", "-y"] + audio_input + ["-t", str(bound), "-vn", "-ac", "1", "-ar", "16000", audio])
     with wave.open(audio) as wav:
         samples = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16).astype(np.float32)
-    seconds = len(samples) // 16000
+    seconds = math.ceil(len(samples) / 16000)
     energy = np.array([float(np.sqrt(np.mean(samples[i * 16000:(i + 1) * 16000] ** 2))) for i in range(seconds)])
-    window = min(45, seconds)
+    window = min(55, seconds)
     ranked = sorted(
         [{"start": i, "end": min(duration, i + window), "energy": float(np.mean(energy[i:i + window]))}
          for i in range(max(1, seconds - window + 1))],
@@ -58,8 +59,8 @@ def analyze(source, output):
         if len(candidates) == 12:
             break
     chunks = []
-    for start in range(0, math.ceil(duration), 120):
-        end = min(duration, start + 120)
+    for start in range(0, math.ceil(bound) if has_audio else 0, 120):
+        end = min(bound, start + 120)
         path = str(Path(output).parent / f"transcribe-{start}.mp3")
         run(["ffmpeg", "-v", "error", "-y", "-ss", str(start), "-t", str(end - start), "-i", audio,
              "-ac", "1", "-ar", "16000", "-b:a", "48k", path])
@@ -279,18 +280,23 @@ def render(config_path):
     chapters = []
     elapsed = 0
     source_info = probe(config["source"])
+    has_source_audio = any(s["codec_type"] == "audio" for s in source_info["streams"])
     stream = next(s for s in source_info["streams"] if s["codec_type"] == "video")
     width, height = int(stream["width"]), int(stream["height"])
     for index, segment in enumerate(config["segments"]):
-        length = min(45, segment["end"] - segment["start"])
+        length = min(55, segment["end"] - segment["start"])
         if length <= 0:
             raise ValueError("Invalid source edit interval")
         output = str(work / f"{Path(config_path).stem}-part-{index}.mp4")
         inputs = ["ffmpeg", "-v", "error", "-y", "-ss", str(segment["start"]), "-t", str(length), "-i", config["source"]]
+        audio_map = "0:a:0"
+        if not has_source_audio:
+            inputs += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
+            audio_map = "1:a:0"
         observations = sample_people(config["source"], segment["start"], length) if config.get("pictureInPicture", True) else []
         scenes = plan_scenes(observations, length, width, height)
         filters = reframe_filter(scenes, width, height)
-        run(inputs + ["-filter_complex_threads", "1", "-filter_complex", filters, "-map", "[v]", "-map", "0:a:0", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-threads", "2", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-pix_fmt", "yuv420p", output])
+        run(inputs + ["-t", str(length), "-filter_complex_threads", "1", "-filter_complex", filters, "-map", "[v]", "-map", audio_map, "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-threads", "2", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-pix_fmt", "yuv420p", output])
         parts.append(output)
         chapters.append((elapsed, f"{index + 1:02d} / {segment['title']}"))
         elapsed += length

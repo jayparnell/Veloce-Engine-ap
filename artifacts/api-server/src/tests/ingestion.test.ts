@@ -8,11 +8,12 @@ import { tmpdir } from "node:os";
 import { JobSource } from "../pipeline/job-source";
 import { command } from "../pipeline/process";
 import { JobStoppedError, jobContext, type JobContext } from "../pipeline/job-context";
-import { parseJson3, parseTimedText, retainedRanges, boundedMoment } from "../pipeline/transcript";
+import { parseJson3, parseTimedText, retainedRanges, boundedMoment, getSourceMetadata } from "../pipeline/transcript";
+import { groundedMoments, fallbackMoments, fallbackWindows, hasSpeech } from "../pipeline/moments";
 test("metadata stays lightweight and full-source retries never request remote sections", async () => {
   const meta = metadataArguments("https://youtu.be/fixture");
   assert(meta.includes("--skip-download")); assert(!meta.includes("--download-sections"));
-  assert(meta.includes("youtube:player_client=android,ios,web"));
+  assert(meta.includes("youtube:player_client=ios,web")); assert(meta.includes("--force-ipv4"));
   const calls: string[][] = [];
   await ingestVod("https://youtu.be/fixture", "/tmp/fixture.mp4", async (_exe, args) => {
     calls.push(args); if (calls.length === 1) throw new Error("Format unavailable"); return "";
@@ -20,10 +21,11 @@ test("metadata stays lightweight and full-source retries never request remote se
   assert.equal(calls.length, 2);
   for (const args of calls) {
     assert(!args.includes("--download-sections")); assert(args.includes("--no-plugin-dirs"));
-    assert.equal(args[args.indexOf("-f") + 1], "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]");
+    assert.equal(args[args.indexOf("-f") + 1], "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/bestvideo[ext=mp4][height<=1080]");
     assert(args.includes("--no-continue")); assert.equal(args[args.indexOf("--concurrent-fragments") + 1], "1");
   }
-  assert(!calls[1]!.includes("--extractor-args"));
+  assert(calls[1]!.includes("youtube:player_client=ios,web"));
+  assert(!calls[1]!.includes("--no-check-certificates"));
   assert.throws(() => sliceArguments("/tmp/fixture.mp4", "/tmp/clip.mp4", 0, 600));
 });
 test("private/geo/DRM failures do not invoke another extractor", async () => {
@@ -112,7 +114,7 @@ test("timed captions are parsed, not invented; filler/gap cuts preserve source c
   assert.deepEqual(parseJson3({}, 40), []);
   const kept = retainedRanges(0, 45, segments);
   const duration = kept.reduce((n, s) => n + s.end - s.start, 0);
-  assert(duration >= 30 && duration < 45);
+  assert(duration >= 15 && duration < 45);
   assert(kept.every((s) => s.start >= 0 && s.end <= 45 && s.end > s.start));
 });
 
@@ -121,9 +123,90 @@ test("accessible VTT and SRT tracks retain real cue timing and strip presentatio
   assert.deepEqual(parseTimedText(text, 30), [{ start: 1, end: 3.5, text: "Actual & timed" }, { start: 4, end: 6, text: "Second source cue" }]);
 });
 test("short AI windows gain real context without truncating proposed evidence or exceeding coverage", () => {
-  assert.deepEqual(boundedMoment(20, 45, 45), { start: 15, end: 45 });
-  assert.deepEqual(boundedMoment(0, 20, 45), { start: 0, end: 30 });
+  assert.deepEqual(boundedMoment(20, 45, 45), { start: 20, end: 45 });
+  assert.deepEqual(boundedMoment(0, 20, 45), { start: 0, end: 20 });
   assert.deepEqual(boundedMoment(10, 43, 45), { start: 10, end: 43 });
   assert.equal(boundedMoment(20, 50, 45), null);
-  assert.equal(boundedMoment(0, 50, 60), null);
+  assert.deepEqual(boundedMoment(0, 55, 60), { start: 0, end: 55 });
+  assert.deepEqual(boundedMoment(0, 10, 15), { start: 0, end: 15 });
+  assert.equal(boundedMoment(0, 56, 60), null);
+});
+test("bot checks retry once with a fresh connection, exact raw proxy and bot-only fallback flags", async () => {
+  const { prepareYtdlpArguments } = await import("../pipeline/youtube-network");
+  const proxy = "http://fixture%2Buser:fixture%40pass@gw.dataimpulse.com:823";
+  for (const operation of ["download", "metadata"]) {
+    const calls: string[][] = [];
+    const execute = async (_exe: string, args: string[]) => {
+      const prepared = await prepareYtdlpArguments(args, { PROXY_URL: proxy });
+      calls.push(prepared);
+      assert.equal(prepared[prepared.indexOf("--proxy") + 1], proxy);
+      assert(prepared.includes("--force-ipv4"));
+      assert(prepared.includes("youtube:player_client=ios,web"));
+      if (calls.length === 1) throw new Error("Sign in to confirm you're not a bot");
+      return JSON.stringify({ title: "fixture", duration: 14400 });
+    };
+    if (operation === "download") await ingestVod("https://youtu.be/fixture", "/tmp/fixture.mp4", execute);
+    else await getSourceMetadata("https://youtu.be/fixture", execute);
+    assert.equal(calls.length, 2);
+    assert(!calls[0]!.includes("--no-check-certificates"));
+    assert(calls[1]!.includes("--no-check-certificates")); assert(calls[1]!.includes("--geo-bypass"));
+  }
+  let attempts = 0;
+  await assert.rejects(ingestVod("https://youtu.be/fixture", "/tmp/fixture.mp4", async () => {
+    attempts++; throw new Error("Sign in to confirm you're not a bot");
+  }), /Sign in to confirm/);
+  assert.equal(attempts, 2);
+});
+test("source metadata accepts 15 seconds through four hours and rejects live, invalid or over-limit sources", async () => {
+  for (const duration of [15, 3600, 3601, 14399, 14400]) {
+    assert.equal((await getSourceMetadata("fixture", async () => JSON.stringify({ duration }))).duration, duration);
+  }
+  for (const duration of [14.9, 14400.1, null]) {
+    await assert.rejects(getSourceMetadata("fixture", async () => JSON.stringify({ duration })), /240-minute/);
+  }
+  await assert.rejects(getSourceMetadata("fixture", async () => JSON.stringify({ duration: 60, is_live: true })), /completed/);
+});
+test("one or two grounded moments are kept; invalid suggestions and excess clips do not fail the batch", () => {
+  const transcript = [{ start: 0, end: 200, text: "This is a real transcript excerpt with enough actual words to make a grounded selection possible." }];
+  assert(hasSpeech(transcript)); assert(!hasSpeech([{ start: 0, end: 1, text: "[Music]" }]));
+  const moment = { start: 0, end: 15, title: "Fixture", hook: "Fixture hook", script: "A grounded analytical script.", hashtags: "", pinnedComment: "", hookScore: 50, evidence: "real transcript excerpt" };
+  for (const count of [1, 2, 3, 4]) {
+    const result = groundedMoments({ moments: [null, { ...moment, evidence: "made up evidence" }, ...Array.from({ length: count }, (_, i) => ({ ...moment, start: i * 40, end: i * 40 + (i ? 55 : 15) }))] }, transcript, 200);
+    assert.equal(result.length, Math.min(count, 3));
+  }
+  assert.deepEqual(groundedMoments({ moments: [] }, [], 60), []);
+  assert.deepEqual(groundedMoments(null, transcript, 60), []);
+});
+test("sparse and silent sources get bounded, evenly spaced previews; energy scans prefer distinct louder windows", async () => {
+  for (const duration of [15, 20, 55, 100, 120, 14400]) {
+    const windows = fallbackWindows(duration);
+    assert(windows.length >= 1 && windows.length <= 3);
+    assert(windows.every(w => w.start >= 0 && w.end <= duration && w.end - w.start >= 15 && w.end - w.start <= 55));
+    const silent = await fallbackMoments("fixture.mp4", duration, async () => "lavfi.astats.Overall.RMS_level=-inf");
+    assert.deepEqual(silent.map(({ start, end }) => ({ start, end })), windows);
+    assert(silent.every(m => m.script.includes("No specific spoken claim or visual event has been verified")));
+  }
+  let scanned = 0;
+  const peaks = await fallbackMoments("fixture.mp4", 400, async (_exe, args) => {
+    scanned++; const at = Number(args[args.indexOf("-ss") + 1]);
+    return `lavfi.astats.Overall.RMS_level=${at === 180 ? -1 : -40}`;
+  });
+  assert.equal(scanned, 9); assert.equal(peaks.length, 3); assert(peaks.some(p => p.start === 180));
+  const unscannable = await fallbackMoments("silent-video.mp4", 400, async () => { throw new Error("No audio stream"); });
+  assert.deepEqual(unscannable.map(({ start, end }) => ({ start, end })), fallbackWindows(400));
+  await assert.rejects(fallbackMoments("fixture.mp4", 400, async () => { throw new JobStoppedError("Processing cancelled."); }), JobStoppedError);
+});
+test("15- and 55-second local cuts retain their full duration and RMS scanning runs on real local media", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "flexible-moments-"));
+  try {
+    const source = join(dir, "source.mp4");
+    await command("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "color=s=160x90:r=5:d=56", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=8000:duration=56", "-t", "56", "-c:v", "libx264", "-threads", "1", "-c:a", "aac", source]);
+    for (const length of [15, 55]) {
+      const output = join(dir, `cut-${length}.mp4`);
+      await command("ffmpeg", sliceArguments(source, output, 0, length));
+      const probe = JSON.parse(await command("ffprobe", ["-v", "error", "-show_format", "-of", "json", output]));
+      assert(Math.abs(Number(probe.format.duration) - length) < .3);
+    }
+    assert.equal((await fallbackMoments(source, 56, command)).length, 1);
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });

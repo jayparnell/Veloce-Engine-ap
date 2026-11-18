@@ -11,4 +11,5 @@
 - [Cleanup reservations](storage-cleanup-reservations.md) — reserve paths before deletion; never auto-release or replay uncertain operations, even when provider locks are no longer held.
 - [Unified posting safety](unified-posting-safety.md) — Late is now Zernio; use canonical hosts without redirects and bind the shared posting key to an explicit owner.
 - [YouTube watch admission](youtube-watch-policy.md) — preserve manual workflows; pending discovery must survive budget limits and bounded RSS windows.
-- [YouTube ingestion network](youtube-ingestion-network.md) — full-VOD downloads and local slices use job-sticky DataImpulse routing; preserve proxy/cookies and redact credentials.
+- [YouTube ingestion network](youtube-ingestion-network.md) — full-VOD/local slicing; pass raw proxy credentials unchanged, scope special flags to one bot retry, and redact secrets.
+- [Flexible clip selection](clip-selection-policy.md) — 1–3 clips at 15–55 seconds, up to four-hour sources; sparse/no-speech videos get energy/spacing previews rather than rejection.

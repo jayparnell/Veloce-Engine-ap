@@ -3,6 +3,8 @@ import math
 import tempfile
 import unittest
 import wave
+import json
+from unittest.mock import patch
 from pathlib import Path
 import numpy as np
 
@@ -31,12 +33,29 @@ class MediaWorkerTests(unittest.TestCase):
             self.assertIn("FOUR", events[-1])
             self.assertIn("FIVE", events[-1])
 
-    def test_full_hour_limit_without_truncation(self):
-        for duration in [30, 601, 1801, 3599.9, 3600]:
+    def test_four_hour_limit_without_truncation(self):
+        for duration in [15, 30, 601, 3600, 3601, 14399.9, 14400]:
             worker.validate_source_duration(duration)
-        for duration in [29.9, 3600.1, float("inf"), float("nan")]:
-            with self.assertRaisesRegex(ValueError, "60 minutes"):
+        for duration in [14.9, 14400.1, float("inf"), float("nan")]:
+            with self.assertRaisesRegex(ValueError, "240 minutes"):
                 worker.validate_source_duration(duration)
+
+    def test_renderer_preserves_55_seconds_and_supplies_audio_for_silent_video(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "render.json"
+            config.write_text(json.dumps({"source": "fixture.mp4", "pictureInPicture": False,
+                                         "segments": [{"start": 0, "end": 55, "title": "Fixture"}]}))
+            info = {"streams": [{"codec_type": "video", "width": 320, "height": 180}]}
+            with patch.object(worker, "probe", return_value=info), \
+                 patch.object(worker, "plan_scenes", return_value=[]), \
+                 patch.object(worker, "reframe_filter", return_value="[0:v]null[v]"), \
+                 patch.object(worker, "run", side_effect=RuntimeError("stop before actual render")) as run:
+                with self.assertRaisesRegex(RuntimeError, "stop before"):
+                    worker.render(config)
+                args = run.call_args.args[0]
+                self.assertEqual(args[args.index("-t") + 1], "55")
+                self.assertIn("anullsrc=r=48000:cl=stereo", args)
+                self.assertIn("1:a:0", args)
 
     def test_words_have_individual_monotonic_times(self):
         words = worker.timed_words("Short sentences make explanations useful.", [[0.1, .8], [1.2, 3]], 3)

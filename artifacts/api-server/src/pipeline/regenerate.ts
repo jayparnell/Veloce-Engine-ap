@@ -54,7 +54,7 @@ export async function runRegeneration(ctx: JobContext, connection: PoolClient, s
       }) : { objectPath: request.voicePath, transcript: request.previousScript };
       const voiceFile = await hydrate(String(voice.objectPath), "voice.mp3");
       const captionsInput = !changed && request.captionsPath && clip.renderInfo?.captionTiming === "asr-word" ? await hydrate(request.captionsPath, "previous.srt") :
-        await (services.align ?? alignVoice)(voiceFile, request.recipe.segments.reduce((n, s) => n + Math.min(45, s.end - s.start), 0), dir, ctx, "editor");
+        await (services.align ?? alignVoice)(voiceFile, request.recipe.segments.reduce((n, s) => n + Math.min(55, s.end - s.start), 0), dir, ctx, "editor");
       const sponsorAudio = request.recipe.sponsorAudio ? await hydrate(request.recipe.sponsorAudio, "sponsor") : undefined;
       const watermark = request.recipe.watermark ? await hydrate(request.recipe.watermark, "watermark") : undefined;
       const output = join(dir, "video.mp4"), poster = join(dir, "poster.jpg"), captionsOutput = join(dir, "captions.srt");
@@ -80,7 +80,7 @@ export async function runRegeneration(ctx: JobContext, connection: PoolClient, s
       const probe = JSON.parse(await command("ffprobe", ["-v", "error", "-show_format", "-show_streams", "-of", "json", output]));
       const video = probe.streams.find((s: { codec_type: string }) => s.codec_type === "video");
       const duration = Number(probe.format.duration);
-      const expected = request.recipe.segments.reduce((n, s) => n + Math.min(45, s.end - s.start), 0) + (request.recipe.mode === "bounty" ? 3 : 0);
+      const expected = request.recipe.segments.reduce((n, s) => n + Math.min(55, s.end - s.start), 0) + (request.recipe.mode === "bounty" ? 3 : 0);
       if (video?.width !== 1080 || video.height !== 1920 || video.r_frame_rate !== "60/1"
         || !probe.streams.some((s: { codec_type: string }) => s.codec_type === "audio")
         || !Number.isFinite(duration) || Math.abs(duration - expected) > .5) throw new Error("Replacement failed video/audio technical checks. Previous version is unchanged.");

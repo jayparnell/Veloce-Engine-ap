@@ -33,24 +33,27 @@ test("every metadata and full-VOD request receives proxy before --", async () =>
     assert.equal(original.includes("--proxy"), false);
   }
 });
-test("DataImpulse sticky sessions are stable across job operations and Retry, and differ between jobs", async () => {
+test("DataImpulse credentials pass through unchanged across jobs, captions, downloads and Retry", async () => {
   const env = { PROXY_URL: "http://fixture-user:p%40ssword@gw.dataimpulse.com:823" };
-  const first = new URL(configuredProxy(env, 71)!);
-  assert.equal(decodeURIComponent(first.username), "fixture-user__ses.71");
+  const first = new URL(configuredProxy(env)!);
+  assert.equal(decodeURIComponent(first.username), "fixture-user");
   assert.equal(decodeURIComponent(first.password), "p@ssword");
-  assert.equal(configuredProxy(env, 71), configuredProxy(env, 71));
-  assert.notEqual(configuredProxy(env, 71), configuredProxy(env, 72));
-  assert.equal(new URL(configuredProxy({ PROXY_URL: "http://fixture-user__ses.old:pass@gw.dataimpulse.com:823" }, 71)!).username, "fixture-user__ses.71");
-  assert.equal(configuredProxy({ PROXY_URL: proxy }, 71), proxy);
+  assert.equal(configuredProxy(env), env.PROXY_URL);
+  const explicitSession = "http://fixture-user__ses.old:pass@gw.dataimpulse.com:823";
+  assert.equal(configuredProxy({ PROXY_URL: explicitSession }), explicitSession);
+  assert.equal(configuredProxy({ PROXY_URL: proxy }), proxy);
   await jobContext.run({ job: { id: 71 } } as JobContext, async () => {
     for (const args of [metadataArguments("https://youtu.be/fixture"), vodArguments("https://youtu.be/fixture", "/tmp/fixture.mp4")]) {
       const prepared = await prepareYtdlpArguments(args, env);
-      assert.equal(prepared[prepared.indexOf("--proxy") + 1], first.toString());
+      assert.equal(prepared[prepared.indexOf("--proxy") + 1], env.PROXY_URL);
     }
-    assert.equal(configuredProxy(env), first.toString(), "caption transport resolves the identical job-scoped proxy");
+    assert.equal(configuredProxy(env), env.PROXY_URL, "caption transport uses the identical raw proxy");
     const caption = await withCaptionResponse(new URL("https://www.youtube.com/api/timedtext"), r => r.text(), env,
       async (_url, options) => { assert.ok((options as { dispatcher?: unknown }).dispatcher); return new Response("fixture captions"); });
     assert.equal(caption, "fixture captions");
+  });
+  await jobContext.run({ job: { id: 72 } } as JobContext, async () => {
+    assert.equal(configuredProxy(env), env.PROXY_URL);
   });
   const safe = redactError(new Error(`ERROR: ${first.toString()}`), env);
   assert.ok(!safe.includes("fixture-user")); assert.ok(!safe.includes("p@ssword")); assert.ok(!safe.includes("p%40ssword"));
