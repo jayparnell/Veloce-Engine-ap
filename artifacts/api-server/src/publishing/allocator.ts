@@ -1,10 +1,11 @@
-import { db, socialAccountsTable as accounts, publishQueueTable as queue, generatedClipsTable as clips, socialConfigsTable } from "@workspace/db";
+import { db, socialAccountsTable as accounts, publishQueueTable as queue, generatedClipsTable as clips, socialConfigsTable, type QueueDatabase } from "@workspace/db";
 import { and, eq, sql, gte } from "drizzle-orm";
 import { nextSlot } from "./slots";
 import { isUnifiedProvider } from "./unifiedPublisher";
 import { unifiedAuthorized } from "./unified-settings";
 
-export async function assignReadyClips(ownerId?: string, accountId?: number) {
+export async function assignReadyClips(ownerId?: string, accountId?: number, database: QueueDatabase = db) {
+  const db = database;
   const candidates = await db.select().from(accounts).where(and(eq(accounts.connected, true), eq(accounts.approved, true), eq(accounts.autoEnabled, true), ownerId ? eq(accounts.ownerId, ownerId) : undefined, accountId ? eq(accounts.id, accountId) : undefined));
   for (const a of candidates) {
     await db.transaction(async (tx) => {
@@ -13,7 +14,7 @@ export async function assignReadyClips(ownerId?: string, accountId?: number) {
       const [config] = await tx.select().from(socialConfigsTable).where(and(eq(socialConfigsTable.ownerId, a.ownerId), eq(socialConfigsTable.provider, a.provider)));
       if (!account?.autoEnabled || !account.connected || !account.approved) return;
       if (isUnifiedProvider(account.postingRoute)) {
-        if (!await unifiedAuthorized(account.ownerId, account.postingRoute)) return;
+        if (!await unifiedAuthorized(account.ownerId, account.postingRoute, tx)) return;
       } else if (account.postingRoute !== "direct" || !config?.appApproved || !account.encryptedTokens) return;
       // Enabling automation must not unexpectedly publish someone's historical vault.
       if (!account.autoEnabledAt) return;

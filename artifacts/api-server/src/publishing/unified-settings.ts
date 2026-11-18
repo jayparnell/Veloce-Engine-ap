@@ -1,11 +1,11 @@
-import { db, unifiedPostingSettingsTable as settings } from "@workspace/db";
+import { db, unifiedPostingSettingsTable as settings, type QueueDatabase } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { credentialHash, isUnifiedProvider, ownerHasUnifiedKey } from "./unifiedPublisher";
 import { ProviderError } from "./providers";
 
-export async function unifiedAuthorized(owner: string, route: string) {
+export async function unifiedAuthorized(owner: string, route: string, database: Pick<QueueDatabase, "select"> = db) {
   if (!isUnifiedProvider(route) || !ownerHasUnifiedKey(owner)) return false;
-  const [config] = await db.select().from(settings).where(eq(settings.ownerId, owner));
+  const [config] = await database.select().from(settings).where(eq(settings.ownerId, owner));
   return Boolean(config && config.provider === route && config.credentialHash === credentialHash());
 }
 export async function requireUnifiedAuthorization(owner: string, route: string) {

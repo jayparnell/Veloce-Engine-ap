@@ -29,6 +29,9 @@ test("a failed poll degrades readiness immediately and a successful poll recover
   assert.equal(failed.body.polls.publisher.lastSuccessAt, 100);
   assert.equal(failed.body.polls.publisher.lastFailureAt, 200);
   clock = 300;
+  health.publisher.observer.started();
+  assert.equal(health.response(false).status, 503);
+  assert.equal(health.response(false).body.polls.publisher.state, "recovering");
   health.publisher.observer.succeeded();
   assert.equal(health.response(false).status, 200);
   assert.equal(health.response(false).body.polls.publisher.error, null);

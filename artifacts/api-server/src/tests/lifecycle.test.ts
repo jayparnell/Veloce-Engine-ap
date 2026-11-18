@@ -80,3 +80,14 @@ test("first poll rejection is handled and immediate stop prevents first poll", a
   await startPollLoop(async () => { calls++; }, 60000, assert.fail)();
   assert.equal(calls, 0);
 });
+
+test("poll error callbacks cannot escape as an unhandled rejection", async () => {
+  let errors = 0;
+  const stop = startPollLoop(async () => { throw new Error("fixture"); }, 5, () => {
+    errors++;
+    throw new Error("diagnostic fixture");
+  });
+  await delay(40);
+  await stop();
+  assert.ok(errors >= 2);
+});

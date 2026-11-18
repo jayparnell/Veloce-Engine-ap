@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { db, pool, autopilotJobsTable as jobs, projectsTable, workerServicesTable } from "@workspace/db";
+import { db, pool, withQueueDatabase, queueConnection, databaseFailure, QueueDatabaseError, autopilotJobsTable as jobs, projectsTable, workerServicesTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { runAutopilot } from "./autopilot-process";
@@ -15,34 +15,49 @@ const localSlots = new Set<number>();
 let stopping = false;
 
 export async function serviceHeartbeat(name: string) {
-  await db.insert(workerServicesTable).values({ name, heartbeatAt: new Date() })
-    .onConflictDoUpdate({ target: workerServicesTable.name, set: { heartbeatAt: new Date() } });
+  await withQueueDatabase(`${name}.heartbeat`, async (database) => {
+    await database.insert(workerServicesTable).values({ name, heartbeatAt: new Date() })
+      .onConflictDoUpdate({ target: workerServicesTable.name, set: { heartbeatAt: new Date() } });
+  });
 }
-export async function runSlot(slot: number, run = runAutopilot, onlyOwner: string | null = null) {
-  const connection = await pool.connect();
+export async function runSlot(slot: number, run = runAutopilot, onlyOwner: string | null = null, onPolled = () => {}) {
+  // Acquisition belongs inside the caller's handled promise, including background slots.
+  const session = await queueConnection(pool, "media.slot");
+  const connection = session.client;
   let acquired = false;
+  let failed = false;
+  let context: JobContext | undefined;
+  const connectionLost = () => { context?.abort.abort(); };
+  session.raw.on("error", connectionLost);
   try {
     // Session locks cap actual live work even if a heartbeat expires while an old worker still runs.
     const lock = await connection.query("SELECT pg_try_advisory_lock(74000,$1) AS acquired", [slot]);
     acquired = Boolean(lock.rows[0]?.acquired);
-    if (!acquired || stopping) return;
+    if (!acquired || stopping) { onPolled(); return; }
     const token = randomUUID();
     const claimed = await connection.query(`UPDATE autopilot_jobs SET status='processing', lease_token=$1, lease_until=now()+interval '3 minutes', updated_at=now()
       WHERE id=(SELECT id FROM autopilot_jobs WHERE cancel_requested=false AND ($2::text IS NULL OR owner_id=$2) AND
       ((status IN ('queued','retry','budget_paused') AND (retry_at IS NULL OR retry_at<=now()))
         OR (status='processing' AND lease_until < now())) ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`, [token, onlyOwner]);
-    if (!claimed.rows.length) return;
+    if (!claimed.rows.length) { onPolled(); return; }
     const id = Number(claimed.rows[0].id);
-    const [job] = await db.select().from(jobs).where(eq(jobs.id, id));
+    const [job] = await withQueueDatabase("media.load_claim", async (database) => database.select().from(jobs).where(eq(jobs.id, id)));
+    onPolled();
     const ctx = new JobContext(job!, token);
-    const heartbeat = setInterval(() => {
-      void db.update(jobs).set({ leaseUntil: new Date(Date.now() + 180000), updatedAt: new Date() })
-        .where(and(eq(jobs.id, id), eq(jobs.leaseToken, token), eq(jobs.cancelRequested, false))).returning()
-        .then((rows) => { if (!rows.length) ctx.abort.abort(); }).catch(() => ctx.abort.abort());
-    }, 10000);
+    context = ctx;
+    const stopHeartbeat = startPollLoop(async () => {
+      const rows = await withQueueDatabase("media.lease_heartbeat", async (database) => database.update(jobs)
+        .set({ leaseUntil: new Date(Date.now() + 180000), updatedAt: new Date() })
+        .where(and(eq(jobs.id, id), eq(jobs.leaseToken, token), eq(jobs.cancelRequested, false))).returning());
+      if (!rows.length) ctx.abort.abort();
+    }, 10000, (error) => {
+      ctx.abort.abort();
+      logger.error({ operation: "media.lease_heartbeat", ...databaseFailure(error) }, "Media lease renewal failed");
+    });
     try {
       await reserveOutputs(job!.ownerId, id, job!.originalClipId ? 1 : (job!.checkpoint.moments as unknown[] | undefined)?.length ?? 5, token);
-      await jobContext.run(ctx, () => run(ctx, connection));
+      // Never put a queue-query deadline around paid work or its lock holder.
+      await jobContext.run(ctx, () => run(ctx, session.raw));
       await ctx.update({ status: "completed", progress: 100, stage: "ready", error: null, retryAt: null, failureKind: null });
       await releaseOutputs(job!.ownerId, id);
       if (!job!.originalClipId) await db.update(projectsTable).set({ status: "completed", stage: 5, progress: 100, error: null, updatedAt: new Date() }).where(eq(projectsTable.id, job!.projectId));
@@ -66,28 +81,46 @@ export async function runSlot(slot: number, run = runAutopilot, onlyOwner: strin
       if (changed.length) logger.warn({ jobId: id, status, failureKind, failures: counted ? retry.count : current?.failures, retryAt, error: message }, "Autopilot job stopped");
       else logger.info({ jobId: id, status: "lease_lost", error: message }, "Superseded media worker did not change job state");
     } finally {
-      clearInterval(heartbeat);
-      await db.update(jobs).set({ leaseUntil: null, leaseToken: null }).where(and(eq(jobs.id, id), eq(jobs.leaseToken, token)));
+      await stopHeartbeat();
+      // If failure persistence was interrupted, leave the processing lease to
+      // expire normally. Clearing it would strand a processing row forever.
+      await withQueueDatabase("media.release_lease", async (database) => database.update(jobs)
+        .set({ leaseUntil: null, leaseToken: null })
+        .where(and(eq(jobs.id, id), eq(jobs.leaseToken, token), sql`${jobs.status} <> 'processing'`)));
     }
   } catch (error) {
-    logger.error({ errorName: error instanceof Error ? error.name : "Unknown" }, "Media worker slot failed");
+    failed = true;
+    throw error instanceof QueueDatabaseError ? error : new QueueDatabaseError("media.slot", error);
   } finally {
-    if (acquired) await connection.query("SELECT pg_advisory_unlock(74000,$1)", [slot]).catch(() => {});
-    connection.release();
+    let unlockError: unknown;
+    // A failed unlock must never return a session-owned lock to the pool.
+    if (acquired && !failed) {
+      try { await connection.query("SELECT pg_advisory_unlock(74000,$1)", [slot]); }
+      catch (error) {
+        failed = true;
+        unlockError = error;
+        logger.error({ operation: "media.unlock", ...databaseFailure(error) }, "Media lock release failed; discarding connection");
+      }
+    }
+    session.raw.removeListener("error", connectionLost);
+    session.release(failed);
+    if (unlockError) throw unlockError;
   }
 }
 /** Adopt queued historical projects without deleting/replacing any existing media. */
 export async function adoptLegacyJobs() {
-  // Compatibility migration only: these retired AI states are never written again.
-  await db.execute(sql`UPDATE autopilot_jobs SET status='retry',retry_at=now(),failure_kind=NULL,
-    error=NULL,updated_at=now()
-    WHERE (status='uncertain' OR (status='budget_paused' AND failure_kind='ai_usage_cap') OR (status='retry' AND failure_kind='ai_retry'))
-      AND cancel_requested=false AND (lease_until IS NULL OR lease_until<now())`);
-  await db.execute(sql`INSERT INTO autopilot_jobs(owner_id,project_id,request_key,input_hash,status,error)
-    SELECT p.owner_id,p.id,'legacy:'||p.id,'legacy',
-      'queued', NULL
-    FROM projects p WHERE p.status IN ('queued','processing') AND p.demo=false
-    AND NOT EXISTS (SELECT 1 FROM autopilot_jobs j WHERE j.project_id=p.id) ON CONFLICT DO NOTHING`);
+  return withQueueDatabase("media.adopt_legacy", async (db) => {
+    // Compatibility migration only: these retired AI states are never written again.
+    await db.execute(sql`UPDATE autopilot_jobs SET status='retry',retry_at=now(),failure_kind=NULL,
+      error=NULL,updated_at=now()
+      WHERE (status='uncertain' OR (status='budget_paused' AND failure_kind='ai_usage_cap') OR (status='retry' AND failure_kind='ai_retry'))
+        AND cancel_requested=false AND (lease_until IS NULL OR lease_until<now())`);
+    await db.execute(sql`INSERT INTO autopilot_jobs(owner_id,project_id,request_key,input_hash,status,error)
+      SELECT p.owner_id,p.id,'legacy:'||p.id,'legacy',
+        'queued', NULL
+      FROM projects p WHERE p.status IN ('queued','processing') AND p.demo=false
+      AND NOT EXISTS (SELECT 1 FROM autopilot_jobs j WHERE j.project_id=p.id) ON CONFLICT DO NOTHING`);
+  });
 }
 export function startPipelineWorker(observer?: PollObserver) {
   stopping = false;
@@ -96,22 +129,32 @@ export function startPipelineWorker(observer?: PollObserver) {
     await adoptLegacyJobs();
     if (stopping) return;
     // Finish cancellations left queued or interrupted by a process crash.
-    await db.execute(sql`UPDATE autopilot_jobs SET status='cancelled',lease_token=NULL,lease_until=NULL
-      WHERE cancel_requested=true AND (status IN ('queued','retry','budget_paused') OR (status='processing' AND (lease_until < now() OR lease_until IS NULL)))`);
-    await db.execute(sql`DELETE FROM render_reservations r WHERE r.completed_at IS NULL
-      AND NOT EXISTS (SELECT 1 FROM autopilot_jobs j WHERE j.id=r.job_id AND j.status NOT IN ('failed','cancelled','completed'))`);
+    await withQueueDatabase("media.cancellations", async (db) => db.execute(sql`UPDATE autopilot_jobs SET status='cancelled',lease_token=NULL,lease_until=NULL
+      WHERE cancel_requested=true AND (status IN ('queued','retry','budget_paused') OR (status='processing' AND (lease_until < now() OR lease_until IS NULL)))`));
+    await withQueueDatabase("media.reservations", async (db) => db.execute(sql`DELETE FROM render_reservations r WHERE r.completed_at IS NULL
+      AND NOT EXISTS (SELECT 1 FROM autopilot_jobs j WHERE j.id=r.job_id AND j.status NOT IN ('failed','cancelled','completed'))`));
+    const probes: Promise<void>[] = [];
     for (let slot = 0; slot < GLOBAL_SOURCE_LIMIT; slot++) {
       if (stopping) break;
       if (running.size >= GLOBAL_SOURCE_LIMIT) break;
       if (localSlots.has(slot)) continue;
       localSlots.add(slot);
-      const promise = runSlot(slot).finally(() => { running.delete(promise); localSlots.delete(slot); });
+      let polled!: () => void, pollFailed!: (error: unknown) => void;
+      probes.push(new Promise<void>((resolve, reject) => { polled = resolve; pollFailed = reject; }));
+      const promise = runSlot(slot, runAutopilot, null, polled).catch((error) => {
+        pollFailed(error);
+        observer?.failed();
+        logger.error({ operation: "media.slot", ...databaseFailure(error) }, "Media worker slot failed");
+      }).finally(() => { running.delete(promise); localSlots.delete(slot); });
       running.add(promise);
     }
+    await Promise.all(probes);
     // A bound listener or a heartbeat alone is not evidence that queue polling works.
     await serviceHeartbeat("media");
   };
-  const stopPolling = startPollLoop(tick, 2000, () => logger.error("Media worker polling failed"), observer);
+  const stopPolling = startPollLoop(tick, 2000, (error) => logger.error({
+    operation: error instanceof QueueDatabaseError ? error.operation : "media.poll", ...databaseFailure(error),
+  }, "Media worker polling failed"), observer);
   return async () => {
     stopping = true;
     await stopPolling();

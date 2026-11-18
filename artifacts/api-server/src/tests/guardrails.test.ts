@@ -52,6 +52,31 @@ async function makeJob(ownerId: string, processing = true) {
 async function getJob(id: number) { return (await db.select().from(jobs).where(eq(jobs.id, id)))[0]!; }
 const status = (o: string) => budgetTransaction(o, (c) => budgetStatus(c, o));
 
+test("interrupted failure persistence keeps a recoverable fenced lease and completed checkpoints", async () => {
+  const o = owner();
+  const job = await makeJob(o, false);
+  const query = pool.query;
+  try {
+    await assert.rejects(runSlot(0, async (ctx) => {
+      await ctx.save("fixtureCompleted", { kept: true });
+      // Simulate a DB outage after work, including the failure-state re-read.
+      pool.query = (async () => { throw Object.assign(new Error("Synthetic database outage"), { code: "08006" }); }) as typeof pool.query;
+      throw new Error("Synthetic interrupted completion");
+    }, o));
+  } finally { pool.query = query; }
+  const saved = await getJob(job.id);
+  assert.equal(saved.status, "processing");
+  assert.ok(saved.leaseUntil, "Interrupted persistence must not create a processing row with no expiry");
+  assert.ok(saved.leaseToken);
+  assert.deepEqual(saved.checkpoint.fixtureCompleted, { kept: true });
+  await db.update(jobs).set({ leaseUntil: new Date(Date.now() - 1000) }).where(eq(jobs.id, job.id));
+  await runSlot(0, async (ctx) => {
+    assert.deepEqual(ctx.job.checkpoint.fixtureCompleted, { kept: true });
+    assert.notEqual(ctx.token, saved.leaseToken);
+  }, o);
+  assert.equal((await getJob(job.id)).status, "completed");
+});
+
 test("EST reset is fixed UTC-05 in summer and winter, exactly at 05:00 UTC", () => {
   for (const month of ["01", "07"]) {
     assert.equal(renderDay(new Date(`2026-${month}-12T04:59:59Z`)).resetAt.toISOString(), `2026-${month}-12T05:00:00.000Z`);

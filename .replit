@@ -97,12 +97,12 @@ args = ".pythonlibs/bin/python3 -m unittest discover -s artifacts/api-server/src
 name = "service-lifecycle"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/tests/lifecycle.test.ts"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "flock -w 240 /tmp/veloce-queue-regressions.lock pnpm --filter @workspace/scripts exec tsx --test --test-concurrency=1 ../artifacts/api-server/src/tests/lifecycle.test.ts ../artifacts/api-server/src/tests/worker-readiness.test.ts ../artifacts/api-server/src/tests/worker-recovery.test.ts"
 
 [[workflows.workflow]]
 name = "publisher-process"
@@ -119,12 +119,12 @@ isValidation = true
 name = "render-guardrails"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/scripts exec tsx --test --test-concurrency=1 ../artifacts/api-server/src/tests/guardrails.test.ts ../artifacts/api-server/src/tests/queue.test.ts"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "flock -w 240 /tmp/veloce-queue-regressions.lock pnpm --filter @workspace/scripts exec tsx --test --test-concurrency=1 ../artifacts/api-server/src/tests/guardrails.test.ts ../artifacts/api-server/src/tests/queue.test.ts"
 
 [[workflows.workflow]]
 name = "editor-regeneration"
@@ -163,23 +163,23 @@ isValidation = true
 name = "youtube-feeds"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/scripts exec tsx --test --test-concurrency=1 ../artifacts/api-server/src/tests/youtube-feeds.test.ts"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "flock -w 240 /tmp/veloce-queue-regressions.lock pnpm --filter @workspace/scripts exec tsx --test --test-concurrency=1 ../artifacts/api-server/src/tests/youtube-feeds.test.ts"
 
 [[workflows.workflow]]
 name = "pipeline-upgrade"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/scripts exec tsx --test --test-concurrency=1 ../artifacts/api-server/src/tests/ai-routing.test.ts ../artifacts/api-server/src/tests/ai-usage.test.ts ../artifacts/api-server/src/tests/guardrails.test.ts ../artifacts/api-server/src/tests/queue.test.ts ../artifacts/api-server/src/tests/regeneration.test.ts ../artifacts/api-server/src/tests/youtube-feeds.test.ts"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "flock -w 240 /tmp/veloce-queue-regressions.lock pnpm --filter @workspace/scripts exec tsx --test --test-concurrency=1 ../artifacts/api-server/src/tests/ai-routing.test.ts ../artifacts/api-server/src/tests/ai-usage.test.ts ../artifacts/api-server/src/tests/guardrails.test.ts ../artifacts/api-server/src/tests/queue.test.ts ../artifacts/api-server/src/tests/regeneration.test.ts ../artifacts/api-server/src/tests/youtube-feeds.test.ts"
 
 [agent]
 stack = "PNPM_WORKSPACE"

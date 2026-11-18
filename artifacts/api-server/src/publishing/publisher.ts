@@ -1,4 +1,4 @@
-import { db, pool, publishQueueTable as queue, socialAccountsTable as accounts, socialConfigsTable, generatedClipsTable as clips, type PublishWork, type Checkpoint } from "@workspace/db";
+import { db, pool, withQueueDatabase, queueConnection, databaseFailure, QueueDatabaseError, publishQueueTable as queue, socialAccountsTable as accounts, socialConfigsTable, generatedClipsTable as clips, type PublishWork, type Checkpoint } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import { ownedFile } from "../lib/mediaStorage";
 import { signObjectURL } from "../lib/objectStorage";
@@ -82,12 +82,15 @@ export async function runPublishWork(work: PublishWork, transport: typeof fetch 
   await db.update(queue).set({ status: result.status, failureKind: null, remoteId: result.remoteId ?? null, remoteUrl: "remoteUrl" in result ? result.remoteUrl as string ?? null : null, error: result.error ?? null, updatedAt: new Date(), retryAt: result.status === "processing" ? new Date(Date.now() + 60000) : null }).where(eq(queue.id, work.id));
 }
 export async function publisherTick(shouldStop = () => false, run = runPublishWork, onlyOwner: string | null = null) {
-  const connection = await pool.connect();
+  const session = await queueConnection(pool, "publisher.poll");
+  const connection = session.client;
   let acquired = false;
+  let failed = false;
   try {
     acquired = Boolean((await connection.query("SELECT pg_try_advisory_lock(74004,0) AS acquired")).rows[0]?.acquired);
     if (!acquired || shouldStop()) return;
-    await assignReadyClips();
+    // Allocation contains database work only; timeout aborts its transaction, not a provider request.
+    await withQueueDatabase("publisher.allocate", (database) => assignReadyClips(onlyOwner ?? undefined, undefined, database));
     const result = await connection.query(`SELECT q.* FROM autopilot_publish_queue q JOIN social_accounts a ON a.id=q.account_id
       WHERE a.connected=true AND a.approved=true AND a.auto_enabled=true AND q.scheduled_at<=now()
       AND (q.retry_at IS NULL OR q.retry_at<=now()) AND q.status IN ('scheduled','processing','publishing','retry')
@@ -95,18 +98,25 @@ export async function publisherTick(shouldStop = () => false, run = runPublishWo
        ORDER BY q.scheduled_at LIMIT 12`, [onlyOwner]);
     for (const raw of result.rows) {
       if (shouldStop()) break;
-      const [work] = await db.select().from(queue).where(eq(queue.id, Number(raw.id)));
+      const [work] = await withQueueDatabase("publisher.load_work", async (database) => database.select().from(queue).where(eq(queue.id, Number(raw.id))));
       if (shouldStop()) break;
       if (!work) continue;
-      await db.update(queue).set({ status: "publishing", updatedAt: new Date() }).where(eq(queue.id, work.id));
+      await withQueueDatabase("publisher.mark_work", async (database) => database.update(queue).set({ status: "publishing", updatedAt: new Date() }).where(eq(queue.id, work.id)));
       try { await run(work); }
       catch (error) {
         await recordPublishFailure(work, error);
       }
     }
+  } catch (error) {
+    failed = true;
+    throw error;
   } finally {
-    if (acquired) await connection.query("SELECT pg_advisory_unlock(74004,0)").catch(() => {});
-    connection.release();
+    try {
+      if (acquired && !failed) await connection.query("SELECT pg_advisory_unlock(74004,0)");
+    } catch (error) {
+      failed = true;
+      throw error;
+    } finally { session.release(failed); }
   }
 }
 export async function recordPublishFailure(work: PublishWork, error: unknown) {
@@ -134,14 +144,16 @@ export function startPublisher(readiness = pollReadiness(150000)) {
   const stopHeartbeat = startPollLoop(async () => {
     // Do not let the independent heartbeat hide stalled or failed queue polling.
     if (readiness.snapshot().ready) await serviceHeartbeat("publisher");
-  }, 30000, () => {
+  }, 30000, (error) => {
     readiness.observer.failed();
-    logger.error("Publisher heartbeat failed");
+    logger.error({ operation: "publisher.heartbeat", ...databaseFailure(error) }, "Publisher heartbeat failed");
   });
   const stopPolling = startPollLoop(async () => {
     await publisherTick(() => stopping);
     if (!stopping) await serviceHeartbeat("publisher");
-  }, 60000, () => logger.error("Publisher poll failed"), readiness.observer);
+  }, 60000, (error) => logger.error({
+    operation: error instanceof QueueDatabaseError ? error.operation : "publisher.poll", ...databaseFailure(error),
+  }, "Publisher poll failed"), readiness.observer);
   return async () => {
     stopping = true;
     await Promise.all([stopPolling(), stopHeartbeat()]);

@@ -1,7 +1,7 @@
 import { startPipelineWorker } from "./pipeline/worker";
 import { startPublisher } from "./publishing/publisher";
 import { logger } from "./lib/logger";
-import { pool } from "@workspace/db";
+import { pool, databaseFailure } from "@workspace/db";
 import { createServer } from "node:http";
 import { serviceLifecycle, servicePort } from "./lib/service-lifecycle";
 import { workerReadiness } from "./lib/worker-readiness";
@@ -9,6 +9,10 @@ import { startYoutubeFeeds } from "./lib/youtube-feeds";
 
 const port = servicePort();
 const readiness = workerReadiness();
+pool.on("error", () => {
+  readiness.media.observer.failed();
+  readiness.publisher.observer.failed();
+});
 let stopMedia: (() => Promise<void>) | undefined;
 let stopPublisher: (() => Promise<void>) | undefined;
 let stopFeeds: (() => Promise<void>) | undefined;
@@ -39,8 +43,8 @@ async function stop() {
 }
 function fail(error: unknown) {
   process.exitCode = 1;
-  logger.error({ err: error, port }, "Worker service failed");
-  void stop().catch((err) => { logger.error({ err }, "Worker shutdown failed"); });
+  logger.error({ operation: "worker.service", ...databaseFailure(error), port }, "Worker service failed");
+  void stop().catch((error) => { logger.error({ operation: "worker.shutdown", ...databaseFailure(error) }, "Worker shutdown failed"); });
 }
 health.on("error", fail);
 void lifecycle.ready.catch(fail);

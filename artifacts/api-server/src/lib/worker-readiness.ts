@@ -17,7 +17,7 @@ export function pollReadiness(staleAfterMs: number, now = Date.now) {
     observer,
     snapshot() {
       const stale = now() - (lastSuccessAt ?? createdAt) > staleAfterMs;
-      const state = failed ? "unavailable" : stale ? "stale" : lastSuccessAt === null ? "starting" : "ready";
+      const state = failed ? polling ? "recovering" : "unavailable" : stale ? "stale" : lastSuccessAt === null ? "starting" : "ready";
       return {
         ready: state === "ready", state, polling, lastStartedAt, lastSuccessAt, lastFailureAt, staleAfterMs,
         error: failed ? "Queue poll failed. Database access may be temporarily unavailable."

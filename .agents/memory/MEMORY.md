@@ -5,6 +5,7 @@
 - [Publishing consent](publishing-consent.md) — automation does not backfill the historical vault; TikTok still requires per-video review and privacy/music consent.
 - [Build and service ownership](build-service-ownership.md) — post-merge builds can run before live services stop; retain worker listener ownership through draining.
 - [Queue test isolation](queue-test-isolation.md) — isolated schemas do not isolate PostgreSQL advisory locks; serialize suites sharing worker locks.
+- [Worker database deadlines](worker-database-deadlines.md) — pair safe-query server cancellation with socket deadlines; never time out active effects or their lock ownership.
 - [Editor regeneration contract](editor-regeneration-contract.md) — Save stays metadata-only; explicit regeneration replaces media atomically, and exports use the rendered copy.
 - [Media runtime compatibility](media-runtime-compatibility.md) — verify the actual Haar detector and model files; OpenAI upload wrappers also receive local data-URL probes.
 - [Cleanup reservations](storage-cleanup-reservations.md) — reserve paths before deletion; never auto-release or replay uncertain operations, even when provider locks are no longer held.
